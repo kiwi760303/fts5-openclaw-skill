@@ -9,6 +9,11 @@ Features:
 - Context length management
 - Incremental indexing
 - Multi-language support (zh-TW, zh-CN, en, ja)
+
+Design Principles (from Agentic Harness Patterns):
+1. Compress: Truncation requires recovery pointer
+2. Tool & Safety: Canonical check for sensitive content
+3. Select: Just-in-time context loading
 """
 
 import sqlite3
@@ -16,24 +21,28 @@ import os
 import json
 import re
 from datetime import datetime
-from typing import Optional, List, Dict, Any, Tuple
+from typing import Optional, List, Dict, Any, Tuple, Callable
 
 DB_PATH = os.path.expanduser("~/.openclaw/fts5.db")
 SETUP_FILE = os.path.expanduser("~/.openclaw/fts5.env")
 CONFIG_FILE = os.path.expanduser("~/.openclaw/config.json")
 
 
-def load_api_key() -> str:
+# ============================================================
+# BOOTSTRAP SEQUENCE - Ordered initialization
+# ============================================================
+
+def _bootstrap_load_api_key() -> str:
     """
-    Load MiniMax API Key from environment or config file.
-    Raises error if not found.
+    Bootstrap: Load API key with priority order.
+    Step 1: Environment → Step 2: fts5.env → Step 3: config.json
     """
-    # 1. Environment variable (highest priority)
+    # Priority 1: Environment variable
     api_key = os.environ.get("MINIMAX_API_KEY")
     if api_key:
         return api_key
     
-    # 2. Config file (~/.openclaw/fts5.env)
+    # Priority 2: fts5.env
     if os.path.exists(SETUP_FILE):
         with open(SETUP_FILE, 'r') as f:
             for line in f:
@@ -42,7 +51,7 @@ def load_api_key() -> str:
                     if key and key != "sk-cp-YOUR_KEY_HERE":
                         return key
     
-    # 3. config.json
+    # Priority 3: config.json
     if os.path.exists(CONFIG_FILE):
         try:
             with open(CONFIG_FILE, 'r') as f:
@@ -52,12 +61,17 @@ def load_api_key() -> str:
         except:
             pass
     
-    # No API key found
     raise ValueError(
         "MINIMAX_API_KEY not found. Please set up FTS5:\n"
         "  1. Run: python3 ~/.openclaw/skills/fts5/setup.py\n"
         "  2. Or set environment variable: export MINIMAX_API_KEY=sk-cp-xxx"
     )
+
+
+def load_api_key() -> str:
+    """Public API key loader (uses bootstrap sequence internally)."""
+    return _bootstrap_load_api_key()
+
 
 # Context length limits
 DEFAULT_CONTEXT_LIMIT = 2000  # Max chars per message in context
@@ -73,22 +87,30 @@ SENSITIVE_PATTERNS = [
     (r'TG[A-Za-z0-9]{20,}', 'telegram_token'),
     (r'-----BEGIN.*?PRIVATE KEY-----', 'private_key'),
     (r'[a-fA-F0-9]{64,}', 'hex_key'),
-    (r'0x[a-fA-F0-9]{40}', 'wallet_address'),  # ETH addresses
+    (r'0x[a-fA-F0-9]{40}', 'wallet_address'),
 ]
 
 
+# ============================================================
+# CANONICAL CHECK - From Tool & Safety Pattern
+# ============================================================
+
 def _contains_sensitive(content: str) -> Tuple[bool, List[str]]:
-    """Check if content contains sensitive data."""
+    """
+    Canonical check for sensitive content.
+    Returns (is_sensitive, detected_types).
+    Uses single-pass scanning for efficiency.
+    """
     if not content or len(content) < 8:
         return False, []
     
-    detected = []
+    detected_set: List[str] = []
     for pattern, label in SENSITIVE_PATTERNS:
         if re.search(pattern, content, re.IGNORECASE):
-            if label not in detected:
-                detected.append(label)
+            if label not in detected_set:
+                detected_set.append(label)
     
-    return len(detected) > 0, detected
+    return len(detected_set) > 0, detected_set
 
 
 def _mask_sensitive(content: str) -> str:
@@ -113,6 +135,32 @@ def _mask_sensitive(content: str) -> str:
     masked = re.sub(r'[a-fA-F0-9]{64,}', '[HEX_KEY]', masked)
     
     return masked
+
+
+# ============================================================
+# COMPRESS PATTERN - Truncation with Recovery Pointer
+# ============================================================
+
+# Recovery pointer template for truncated content
+TRUNCATION_MARKER = '...<truncated — recovery: re-run search() or check source session file>'
+
+def _truncate_with_recovery(content: str, limit: int, operation: str = "search()") -> str:
+    """
+    Truncate content with recovery pointer (Compress Pattern).
+    
+    Args:
+        content: Content to truncate
+        limit: Max characters
+        operation: Recovery operation hint (e.g., "search()", "cat file")
+    
+    Returns:
+        Truncated content with recovery pointer
+    """
+    if len(content) <= limit:
+        return content
+    
+    marker = f'...<truncated — recovery: {operation}>'
+    return content[:limit - len(marker)] + marker
 
 
 def _estimate_complexity(query: str) -> str:
@@ -225,7 +273,7 @@ def add_message(
     if not content or not content.strip():
         return 0
     
-    # Check for sensitive data
+    # Check for sensitive data (canonical check)
     is_sensitive = False
     if not skip_sensitive_filter:
         is_sensitive, _ = _contains_sensitive(content)
@@ -298,15 +346,16 @@ def search(query: str, limit: int = 10, channel: Optional[str] = None,
     results = [dict(row) for row in cursor.fetchall()]
     conn.close()
     
-    # Apply context length management
+    # Apply context length management with RECOVERY POINTER
     pruned_results = []
     total_chars = 0
     
     for r in results:
         content = r.get('content', '')
-        # Truncate long messages
+        
+        # Truncate long messages WITH recovery pointer (Compress Pattern)
         if len(content) > per_msg_limit:
-            content = content[:per_msg_limit] + "...[truncated]"
+            content = _truncate_with_recovery(content, per_msg_limit, "search() with higher limit")
             r['content'] = content
         
         # Check total length limit

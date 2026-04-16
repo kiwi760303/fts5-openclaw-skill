@@ -275,6 +275,86 @@ def check_no_yolo_patterns():
     return len(issues) == 0
 
 
+def check_harness_patterns():
+    """
+    Check for Agentic Harness Patterns compliance.
+    
+    Patterns to check:
+    1. Two-phase eviction: state save uses atomic rename
+    2. Exponential backoff: LLM retries use exp backoff
+    3. Truncation with recovery: _truncate_with_recovery function exists
+    4. Typed IDs: make_session_id / make_index_id exist
+    5. Canonical check: _contains_sensitive uses single-pass scan
+    """
+    checks = []
+    
+    # 1. Check indexer.py for atomic state save
+    indexer = FTS5_DIR / 'indexer.py'
+    if indexer.exists():
+        content = indexer.read_text()
+        if 'os.rename' in content and '_TMP_DIR' in content:
+            success("Two-phase eviction: atomic rename found")
+        else:
+            warn("Two-phase eviction: atomic rename not found in indexer.py")
+            checks.append(False)
+        
+        if 'CHECKPOINT_BATCH_SIZE' in content:
+            success("Checkpoint/resume mechanism found")
+        else:
+            warn("Checkpoint/resume: CHECKPOINT_BATCH_SIZE not found")
+            checks.append(False)
+        
+        if 'SESSION_TYPE_PREFIX' in content or 'make_session_id' in content:
+            success("Typed IDs: session ID prefix found")
+        else:
+            warn("Typed IDs: session ID prefix not found")
+            checks.append(False)
+    
+    # 2. Check llm_summary.py for exponential backoff
+    llm_summary = FTS5_DIR / 'llm_summary.py'
+    if llm_summary.exists():
+        content = llm_summary.read_text()
+        if 'exponential' in content.lower() or 'BACKOFF_MULTIPLIER' in content:
+            success("Exponential backoff: found in llm_summary.py")
+        else:
+            warn("Exponential backoff: not found in llm_summary.py")
+            checks.append(False)
+    
+    # 3. Check __init__.py for truncation with recovery
+    init = FTS5_DIR / '__init__.py'
+    if init.exists():
+        content = init.read_text()
+        if '_truncate_with_recovery' in content:
+            success("Truncation with recovery pointer: found")
+        else:
+            warn("Truncation with recovery: _truncate_with_recovery not found")
+            checks.append(False)
+        
+        if 'TRUNCATION_MARKER' in content:
+            success("Truncation marker constant: found")
+        else:
+            warn("Truncation marker constant: TRUNCATION_MARKER not found")
+            checks.append(False)
+        
+        # Check for canonical check pattern (single-pass)
+        if '_contains_sensitive' in content:
+            # Verify it returns Tuple[bool, List[str]]
+            func_match = re.search(r'def _contains_sensitive\([^)]*\)\s*->\s*Tuple\[bool, List\[str\]\]', content)
+            if func_match:
+                success("Canonical check: _contains_sensitive returns (bool, List[str])")
+            else:
+                warn("Canonical check: _contains_sensitive signature may not be canonical")
+    
+    # 4. Check for Bootstrap Sequence
+    if '_bootstrap_load_api_key' in content:
+        success("Bootstrap Sequence: ordered init found")
+    else:
+        warn("Bootstrap Sequence: _bootstrap_load_api_key not found")
+        checks.append(False)
+    
+    return len([c for c in checks if not c]) == 0 if checks else True
+
+
 def run_all_checks() -> bool:
     """Run all linter checks."""
     print(f"""
@@ -294,6 +374,7 @@ FTS5 Linter - Architectural Enforcement Tool
         ("Layer Dependencies", check_layer_dependencies),
         ("Exchange Engine Rules", check_exchange_engine_rules),
         ("YOLO Anti-Patterns", check_no_yolo_patterns),
+        ("Agentic Harness Patterns", check_harness_patterns),
     ]
     
     results = []

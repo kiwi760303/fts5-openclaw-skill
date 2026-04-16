@@ -2,7 +2,7 @@
 FTS5 + LLM Summary Module
 Combines FTS5 search with MiniMax LLM summarization.
 Optimized prompts for different query types and languages.
-Three-layer error handling with fallback.
+Three-layer error handling with exponential backoff.
 """
 
 import urllib.request
@@ -86,9 +86,40 @@ def _check_rate_limit():
     _rate_limiter_history.append(now)
 
 
+# ============================================================
+# EXPONENTIAL BACKOFF - From Task Decomposition Pattern
+# ============================================================
+
+MAX_RETRIES = 3
+INITIAL_BACKOFF = 2  # seconds
+BACKOFF_MULTIPLIER = 2
+
+
+def _exponential_backoff(attempt: int, error_type: str) -> float:
+    """
+    Calculate exponential backoff wait time.
+    
+    Args:
+        attempt: Current retry attempt (0-indexed)
+        error_type: Type of error for adjusted wait times
+    
+    Returns:
+        Wait time in seconds
+    """
+    base_wait = INITIAL_BACKOFF * (BACKOFF_MULTIPLIER ** attempt)
+    
+    # Adjust based on error type
+    if error_type == "rate_limit":
+        base_wait *= 2  # Longer wait for rate limits
+    elif error_type == "timeout":
+        base_wait *= 1  # Standard backoff for timeouts
+    
+    return min(base_wait, 60)  # Cap at 60 seconds
+
+
 def call_llm_with_fallback(prompt: str, max_tokens: int = 500, system: Optional[str] = None) -> Dict[str, Any]:
     """
-    Call MiniMax LLM API with three-layer error handling.
+    Call MiniMax LLM API with three-layer error handling + exponential backoff.
     
     Returns:
         Dict with:
@@ -97,45 +128,61 @@ def call_llm_with_fallback(prompt: str, max_tokens: int = 500, system: Optional[
             - fallback: bool (whether fallback was used)
             - error: str (error message if failed)
     """
-    # Layer 1: Try normal LLM call
-    try:
-        text = _call_llm_internal(prompt, max_tokens, system)
-        return {
-            "success": True,
-            "text": text,
-            "fallback": False,
-            "error": None
-        }
+    last_error = None
     
-    except RateLimitError as e:
-        logger.warning(f"Rate limit error: {e}")
-        # Wait and retry once
-        time.sleep(5)
+    for attempt in range(MAX_RETRIES):
         try:
             text = _call_llm_internal(prompt, max_tokens, system)
-            return {"success": True, "text": text, "fallback": False, "error": None}
-        except Exception as retry_error:
-            logger.error(f"Retry failed: {retry_error}")
-            return {"success": False, "text": None, "fallback": True, "error": str(retry_error)}
+            if attempt > 0:
+                logger.info(f"LLM call succeeded on retry {attempt + 1}")
+            return {
+                "success": True,
+                "text": text,
+                "fallback": False,
+                "error": None
+            }
+        
+        except RateLimitError as e:
+            error_type = "rate_limit"
+            last_error = e
+            logger.warning(f"Rate limit error (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+        
+        except APITimeoutError as e:
+            error_type = "timeout"
+            last_error = e
+            logger.warning(f"Timeout error (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+        
+        except APIServerError as e:
+            error_type = "server_error"
+            last_error = e
+            logger.warning(f"Server error (attempt {attempt + 1}/{MAX_RETRIES}): {e}")
+        
+        except NetworkError as e:
+            error_type = "network"
+            last_error = e
+            logger.error(f"Network error: {e}")
+            # Don't retry network errors with backoff
+            break
+        
+        except Exception as e:
+            error_type = "unknown"
+            last_error = e
+            logger.error(f"Unexpected error (attempt {attempt + 1}/{MAX_RETRIES}): {type(e).__name__}: {e}")
+        
+        # Exponential backoff before next retry
+        if attempt < MAX_RETRIES - 1:
+            wait_time = _exponential_backoff(attempt, error_type)
+            logger.info(f"Retrying in {wait_time:.1f}s...")
+            time.sleep(wait_time)
     
-    except (APITimeoutError, APIServerError) as e:
-        logger.warning(f"API error ({type(e).__name__}): {e}")
-        # Wait and retry once
-        time.sleep(10)
-        try:
-            text = _call_llm_internal(prompt, max_tokens, system)
-            return {"success": True, "text": text, "fallback": False, "error": None}
-        except Exception as retry_error:
-            logger.error(f"Retry failed: {retry_error}")
-            return {"success": False, "text": None, "fallback": True, "error": str(retry_error)}
-    
-    except NetworkError as e:
-        logger.error(f"Network error: {e}")
-        return {"success": False, "text": None, "fallback": True, "error": str(e)}
-    
-    except Exception as e:
-        logger.error(f"Unexpected error in LLM call: {type(e).__name__}: {e}")
-        return {"success": False, "text": None, "fallback": True, "error": str(e)}
+    # All retries exhausted
+    error_msg = str(last_error) if last_error else "Unknown error"
+    return {
+        "success": False,
+        "text": None,
+        "fallback": True,
+        "error": error_msg
+    }
 
 
 def _call_llm_internal(prompt: str, max_tokens: int = 500, system: Optional[str] = None) -> str:
@@ -498,7 +545,7 @@ def summarize_conversations(query: str, search_results: List[Dict[str, Any]], li
     
     system_prompt = """你是一個有用的助手，擅長總結對話內容。請簡潔明瞭地回覆。"""
     
-    # Use error-handled LLM call
+    # Use error-handled LLM call (now with exponential backoff)
     result = call_llm_with_fallback(prompt, max_tokens=600, system=system_prompt)
     
     if result["success"]:

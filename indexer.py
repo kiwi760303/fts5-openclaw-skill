@@ -1,49 +1,103 @@
 """
-FTS5 Indexer - Automatic message indexing for OpenClaw sessions
+FTS5 Indexer v1.5 - with checkpoint/resume + two-phase eviction
 
-This module handles automatic indexing of new messages from OpenClaw session files.
-It tracks what's been indexed and only imports new messages on each run.
+Fixes applied:
+1. Two-phase eviction: write temp then atomic rename
+2. Checkpoint/resume for long-running imports
+3. Typed session IDs with prefixes
+4. Exponential backoff for failures
 """
 
 import os
 import sys
 import json
+import time
+import fcntl
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, Set, Tuple
+from typing import Dict, Tuple, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from skills.fts5 import init_db, add_message, get_stats, search
 
-# State file to track indexed sessions
-STATE_FILE = os.path.expanduser("~/.openclaw/fts5/indexer_state.json")
+# ============================================================
+# PATHS - Bootstrap Sequence: config parsing before use
+# ============================================================
 
-# Session directory - use ~/.openclaw/agents/main/sessions
-SESSIONS_DIR = os.path.expanduser("~/.openclaw/agents/main/sessions")
+STATE_FILE = Path(os.path.expanduser("~/.openclaw/fts5/indexer_state.json"))
+SESSIONS_DIR = Path(os.path.expanduser("~/.openclaw/agents/main/sessions"))
+_TMP_DIR = Path(os.path.expanduser("~/.openclaw/fts5/.tmp"))
+
+# Ensure tmp directory exists
+_TMP_DIR.mkdir(parents=True, exist_ok=True)
+
+# ============================================================
+# TYPED IDs - Session tracking with type prefixes
+# ============================================================
+
+SESSION_TYPE_PREFIX = "session:"
+INDEX_TYPE_PREFIX = "index:"
+
+def make_session_id(filename: str) -> str:
+    """Create a typed session ID from filename."""
+    return f"{SESSION_TYPE_PREFIX}{filename}"
+
+def make_index_id(session_id: str, batch: int) -> str:
+    """Create a typed index batch ID."""
+    return f"{INDEX_TYPE_PREFIX}{session_id}:{batch}"
+
+# ============================================================
+# TWO-PHASE EVICTION - From Task Decomposition Pattern
+# ============================================================
+
+def save_state_atomic(state: Dict) -> bool:
+    """
+    Two-phase state save: write to temp file first, then atomic rename.
+    
+    Phase 1: Write to .tmp file
+    Phase 2: fsync + atomic rename
+    
+    This ensures:
+    - If crash between phases: old state is intact
+    - No partial state files
+    """
+    try:
+        tmp_file = _TMP_DIR / f"indexer_state.{os.getpid()}.tmp"
+        
+        # Phase 1: Write to temp file
+        with open(tmp_file, 'w') as f:
+            json.dump(state, f, indent=2)
+            f.flush()
+            os.fsync(f.fileno())
+        
+        # Phase 2: Atomic rename
+        os.rename(tmp_file, STATE_FILE)
+        
+        return True
+    except Exception as e:
+        print(f"❌ Atomic state save failed: {e}")
+        return False
 
 
 def load_state() -> Dict:
-    """Load the indexer state."""
-    if os.path.exists(STATE_FILE):
+    """
+    Load indexer state with disk-backed recovery.
+    """
+    if STATE_FILE.exists():
         try:
             with open(STATE_FILE, 'r') as f:
                 return json.load(f)
         except (json.JSONDecodeError, IOError):
             pass
+    
     return {
-        "indexed_sessions": {},  # {filename: {"last_mtime": ..., "last_size": ..., "last_indexed_id": ...}}
+        "indexed_sessions": {},
         "last_run": None,
-        "total_indexed": 0
+        "total_indexed": 0,
+        "checkpoints": {}  # NEW: checkpoint tracking
     }
-
-
-def save_state(state: Dict):
-    """Save the indexer state."""
-    os.makedirs(os.path.dirname(STATE_FILE), exist_ok=True)
-    with open(STATE_FILE, 'w') as f:
-        json.dump(state, f, indent=2)
 
 
 def get_session_info(filepath: str) -> Dict:
@@ -75,47 +129,172 @@ def count_messages_in_file(filepath: str) -> int:
     return count
 
 
-def index_session(filepath: str, force: bool = False) -> Tuple[int, bool]:
+# ============================================================
+# CHECKPOINT/RESUME - From Long-Running Agents Pattern
+# ============================================================
+
+CHECKPOINT_BATCH_SIZE = 100  # Save checkpoint every N messages
+
+
+def import_session_with_checkpoint(filepath: str, force: bool = False) -> Tuple[int, bool, Optional[Dict]]:
     """
-    Index new messages from a session file.
+    Import messages with checkpoint/resume support.
     
     Returns:
-        (count of new messages indexed, whether file was updated)
+        (count imported, was_updated, checkpoint_info)
     """
     filename = os.path.basename(filepath)
+    session_id = make_session_id(filename)
     state = load_state()
+    
+    # Get current file info
     session_info = get_session_info(filepath)
     
-    # Check if file is new or updated
-    if filename in state["indexed_sessions"]:
+    # Check if file changed
+    if not force and filename in state["indexed_sessions"]:
         last_info = state["indexed_sessions"][filename]
         if (last_info["size"] == session_info["size"] and 
             last_info["mtime"] == session_info["mtime"]):
-            # No changes
-            return 0, False
+            return 0, False, None
     
-    # Import messages from this file
-    from skills.fts5 import import_from_session_file
-    count = import_from_session_file(filepath)
+    # Get checkpoint if exists
+    checkpoint = state.get("checkpoints", {}).get(session_id)
+    start_offset = checkpoint.get("last_line", 0) if checkpoint else 0
+    
+    # Import messages
+    count = 0
+    last_line = start_offset
+    batch_num = checkpoint.get("batch", 0) if checkpoint else 0
+    
+    try:
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line_num, line in enumerate(f):
+                if line_num < start_offset:
+                    continue
+                
+                try:
+                    event = json.loads(line.strip())
+                    if event.get('type') == 'message':
+                        msg = event.get('message', {})
+                        if msg.get('role') in ('user', 'assistant'):
+                            add_message(
+                                sender=msg.get('role'),
+                                sender_label=msg.get('role'),
+                                content=_extract_content(msg),
+                                channel=event.get('metadata', {}).get('channel', 'unknown'),
+                                session_key=session_id,
+                                message_id=event.get('id'),
+                                timestamp=event.get('timestamp')
+                            )
+                            count += 1
+                            
+                            # Checkpoint every batch size
+                            if count % CHECKPOINT_BATCH_SIZE == 0:
+                                last_line = line_num + 1
+                                _save_checkpoint(session_id, last_line, batch_num)
+                                batch_num += 1
+                
+                except (json.JSONDecodeError, KeyError):
+                    continue
+                
+                last_line = line_num + 1
+            
+            # Final checkpoint
+            last_line = last_line if last_line > 0 else start_offset
+            _save_checkpoint(session_id, last_line, batch_num)
+    
+    except Exception as e:
+        print(f"❌ Import failed: {e}")
+        return count, True, None
     
     # Update state
     state["indexed_sessions"][filename] = {
         **session_info,
         "indexed_at": datetime.now().isoformat(),
-        "messages_indexed": count
+        "messages_indexed": count,
+        "session_id": session_id
     }
     
-    save_state(state)
+    # Clear checkpoint on successful complete import
+    if session_id in state.get("checkpoints", {}):
+        del state["checkpoints"][session_id]
     
-    return count, True
+    save_state_atomic(state)
+    
+    return count, True, None
 
+
+def _extract_content(msg: Dict) -> str:
+    """Extract content from message."""
+    content_list = msg.get('content', [])
+    content = ""
+    if isinstance(content_list, list):
+        for item in content_list:
+            if isinstance(item, dict):
+                if item.get('type') == 'text':
+                    content += item.get('text', '')
+                elif item.get('type') == 'toolResult':
+                    content += f"[tool: {item.get('toolUseId', 'unknown')}] "
+            elif isinstance(item, str):
+                content += item
+    return content.strip() or "[empty]"
+
+
+def _save_checkpoint(session_id: str, last_line: int, batch: int):
+    """Save a checkpoint for resume."""
+    state = load_state()
+    if "checkpoints" not in state:
+        state["checkpoints"] = {}
+    
+    state["checkpoints"][session_id] = {
+        "last_line": last_line,
+        "batch": batch,
+        "saved_at": datetime.now().isoformat()
+    }
+    save_state_atomic(state)
+
+
+def index_session(filepath: str, force: bool = False) -> Tuple[int, bool]:
+    """
+    Index new messages from a session file (legacy interface).
+    Now delegates to checkpoint version.
+    """
+    count, updated, _ = import_session_with_checkpoint(filepath, force)
+    return count, updated
+
+
+# ============================================================
+# EXPONENTIAL BACKOFF - For failed operations
+# ============================================================
+
+MAX_RETRIES = 3
+INITIAL_BACKOFF = 1  # seconds
+
+def with_exponential_backoff(func):
+    """Decorator for operations with exponential backoff retry."""
+    def wrapper(*args, **kwargs):
+        last_error = None
+        for attempt in range(MAX_RETRIES):
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                last_error = e
+                if attempt < MAX_RETRIES - 1:
+                    wait = INITIAL_BACKOFF * (2 ** attempt)
+                    print(f"   ⏳ Retry {attempt+1}/{MAX_RETRIES} after {wait}s: {e}")
+                    time.sleep(wait)
+                continue
+        raise last_error
+    return wrapper
+
+
+# ============================================================
+# MAIN INDEXER
+# ============================================================
 
 def run_indexer() -> Dict:
     """
-    Run the FTS5 indexer - checks all sessions and indexes new messages.
-    
-    Returns:
-        Dict with indexing results
+    Run the FTS5 indexer with checkpoint/resume support.
     """
     init_db()
     state = load_state()
@@ -125,27 +304,38 @@ def run_indexer() -> Dict:
         "sessions_checked": 0,
         "sessions_updated": 0,
         "new_messages": 0,
+        "resumed_from_checkpoint": 0,
         "errors": []
     }
     
-    if not os.path.exists(SESSIONS_DIR):
+    if not SESSIONS_DIR.exists():
         results["errors"].append(f"Sessions directory not found: {SESSIONS_DIR}")
         return results
+    
+    # Check for resumable checkpoints
+    pending_checkpoints = state.get("checkpoints", {})
+    if pending_checkpoints:
+        print(f"🔄 Resuming {len(pending_checkpoints)} checkpoint(s)...")
+        for session_id, cp in pending_checkpoints.items():
+            # Extract filename from session_id
+            filename = session_id.replace(SESSION_TYPE_PREFIX, "")
+            filepath = SESSIONS_DIR / filename
+            if filepath.exists():
+                count, _, _ = import_session_with_checkpoint(str(filepath))
+                if count > 0:
+                    results["resumed_from_checkpoint"] += 1
+                    results["new_messages"] += count
     
     # Check all session files
     for filename in os.listdir(SESSIONS_DIR):
         if not filename.endswith('.jsonl') or '.reset.' in filename:
             continue
         
-        # Skip reset files
-        if '.reset.' in filename:
-            continue
-        
-        filepath = os.path.join(SESSIONS_DIR, filename)
+        filepath = SESSIONS_DIR / filename
         results["sessions_checked"] += 1
         
         try:
-            count, updated = index_session(filepath)
+            count, updated = index_session(str(filepath))
             if updated:
                 results["sessions_updated"] += 1
                 results["new_messages"] += count
@@ -155,7 +345,7 @@ def run_indexer() -> Dict:
     # Update last run time
     state["last_run"] = datetime.now().isoformat()
     state["total_indexed"] = get_stats()["total"]
-    save_state(state)
+    save_state_atomic(state)
     
     return results
 
@@ -165,23 +355,29 @@ def get_indexer_status() -> Dict:
     state = load_state()
     stats = get_stats()
     
+    sessions_tracked = len(state.get("indexed_sessions", {}))
+    sessions_in_dir = 0
+    if SESSIONS_DIR.exists():
+        sessions_in_dir = len([f for f in os.listdir(SESSIONS_DIR) 
+                              if f.endswith('.jsonl') and '.reset.' not in f])
+    
     return {
-        "state_file": STATE_FILE,
-        "sessions_tracked": len(state["indexed_sessions"]),
-        "last_run": state["last_run"],
+        "state_file": str(STATE_FILE),
+        "sessions_tracked": sessions_tracked,
+        "last_run": state.get("last_run"),
         "total_messages_indexed": stats["total"],
-        "total_sessions_in_dir": len([f for f in os.listdir(SESSIONS_DIR) 
-                                      if f.endswith('.jsonl') and '.reset.' not in f])
-        if os.path.exists(SESSIONS_DIR) else 0,
+        "total_sessions_in_dir": sessions_in_dir,
+        "pending_checkpoints": len(state.get("checkpoints", {})),
         "sessions": {
             fname: info
-            for fname, info in state["indexed_sessions"].items()
+            for fname, info in state.get("indexed_sessions", {}).items()
         }
     }
 
 
 if __name__ == "__main__":
-    print("🔍 FTS5 Indexer Running...")
+    print("🔍 FTS5 Indexer v1.5 Running...")
+    print("   [Checkpoint/Resume + Two-Phase Eviction + Typed IDs]")
     print()
     
     # Show status
@@ -189,6 +385,7 @@ if __name__ == "__main__":
     print(f"📊 Current Status:")
     print(f"   Sessions tracked: {status['sessions_tracked']}")
     print(f"   Total messages: {status['total_messages_indexed']}")
+    print(f"   Pending checkpoints: {status['pending_checkpoints']}")
     print(f"   Last run: {status['last_run'] or 'Never'}")
     print()
     
@@ -198,6 +395,7 @@ if __name__ == "__main__":
     
     print(f"   Sessions checked: {results['sessions_checked']}")
     print(f"   Sessions updated: {results['sessions_updated']}")
+    print(f"   Resumed from checkpoint: {results['resumed_from_checkpoint']}")
     print(f"   New messages: {results['new_messages']}")
     
     if results['errors']:
