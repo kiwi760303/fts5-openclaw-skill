@@ -4,6 +4,40 @@ All notable changes to this project will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
+## [1.3.0] - 2026-04-16
+
+### 🎉 Major Improvements
+
+#### Self-Improving Integration (Merged)
+- **Combined installation** - FTS5 + Self-Improving in one repo
+- **Automatic path detection** - Scripts detect existing ~/self-improving/ and preserve data
+- **Bidirectional sync** - FTS5 ↔ memory synchronization
+
+#### Harness Engineering Principles
+- **FTS5 Linter** - Mechanical architectural enforcement (7 checks)
+- **Pattern Registry** - Anti-patterns documented for automatic detection
+- **Simplified AGENTS.md** - ~100 lines as table of contents
+
+### ✅ Added
+
+- `linter.py` - Architectural enforcement tool
+  - Export validation
+  - Hardcoded path detection
+  - Script permission checks (755)
+  - Path detection consistency
+  - Layer dependencies check
+  - Exchange engine rules validation
+  - YOLO anti-pattern detection
+- `self_improving/domains/patterns.md` - Pattern registry
+- Bilingual README (Chinese primary, English secondary)
+
+### 🔧 Improved
+
+- **install.py** - Handles existing Self-Improving gracefully
+- **exchange-cron.sh** - Proper permissions (755)
+- **Path detection** - Consistent across all scripts
+- **Documentation** - SKILL.md updated with full structure
+
 ## [1.2.0] - 2026-04-16
 
 ### 🎉 Major Improvements
@@ -80,7 +114,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 | Version | Date | Status |
 |---------|------|--------|
-| 1.2.0 | 2026-04-16 | ✅ Current |
+| 1.3.0 | 2026-04-16 | ✅ Current |
+| 1.2.0 | 2026-04-16 | ✅ Previous |
 | 1.1.0 | 2026-04-15 | ✅ Previous |
 | 1.0.0 | 2026-04-14 | ✅ Initial |
 
@@ -104,13 +139,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ---
 
-## Statistics (as of v1.2.0)
+## Statistics (as of v1.3.0)
 
-- **Files**: 12
-- **Lines of Code**: ~2,200
+- **Files**: 14
+- **Lines of Code**: ~3,500
 - **Dependencies**: Python stdlib only (urllib, sqlite3, json, re)
 - **Supported Languages**: 4 (zh-TW, zh-CN, en, ja)
 - **Error Recovery Layers**: 3
+- **Linter Checks**: 7 (all passing)
+- **Self-Improving Scripts**: 5
 
 ## Future Plans
 
