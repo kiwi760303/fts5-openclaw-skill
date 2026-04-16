@@ -1,10 +1,10 @@
 """
 Proactive Integration Engine
 ===========================
-Connects FTS5 + Self-Improving + Proactivity into a unified closed loop.
+Connects PFSI + Self-Improving + Proactivity into a unified closed loop.
 
 Flow:
-  User Message → Proactivity Hook → FTS5 Search → Self-Improving Analysis → Action
+  User Message → Proactivity Hook → PFSI Search → Self-Improving Analysis → Action
                       ↑                                        ↓
                       └──────────── Learning ←────────────────┘
 
@@ -52,7 +52,7 @@ def detect_proactive_need(query: str) -> bool:
 
 
 def extract_topic(query: str) -> str:
-    """Extract the topic from query for FTS5 search.
+    """Extract the topic from query for PFSI search.
     
     Removes trigger words but keeps natural phrase structure.
     """
@@ -81,10 +81,10 @@ def extract_topic(query: str) -> str:
     return cleaned
 
 
-# ── FTS5 Search ──────────────────────────────────────────────────
+# ── PFSI Search ──────────────────────────────────────────────────
 
 def proactive_search(topic: str, limit: int = 3) -> List[Dict]:
-    """Search FTS5 for relevant history. Uses just-in-time loading."""
+    """Search PFSI for relevant history. Uses just-in-time loading."""
     try:
         from skills.fts5 import search
         return search(topic, limit=limit)
@@ -103,7 +103,7 @@ def proactive_search(topic: str, limit: int = 3) -> List[Dict]:
 
 
 def proactive_summarize(topic: str, history: List[Dict], limit: int = 3) -> Dict:
-    """Summarize FTS5 search results using LLM."""
+    """Summarize PFSI search results using LLM."""
     try:
         from skills.fts5 import summarize
         return summarize(topic, history, limit=limit)
@@ -200,7 +200,7 @@ def run_proactive_check(query: str) -> Optional[str]:
     if not detect_proactive_need(query):
         return None
     
-    # Step 2: Extract topic and search FTS5
+    # Step 2: Extract topic and search PFSI
     topic = extract_topic(query)
     history = proactive_search(topic, limit=3)
     

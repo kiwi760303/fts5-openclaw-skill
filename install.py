@@ -1,11 +1,12 @@
 #!/usr/bin/env python3
 """
-FTS5 Installer Script
-Installs FTS5 skill and sets up cron hooks for automatic indexing
+OpenClaw PFSI Installer
+Installs PFSI skill and sets up cron hooks for automatic indexing
 
-Handles existing Self-Improving installations gracefully:
-- If ~/self-improving/ exists: offer to use existing location
-- If no existing installation: use merged location in FTS5 repo
+Handles existing installations gracefully:
+- If ~/self-improving/ exists: use existing location (data preserved)
+- If ~/proactivity/ exists: detect and integrate
+- Database: auto-created at ~/.openclaw/fts5.db (gitignored, never committed)
 """
 
 import os
@@ -13,11 +14,15 @@ import sys
 import subprocess
 from pathlib import Path
 
-FTS5_DIR = os.path.expanduser("~/.openclaw/skills/fts5")
+PFSI_DIR = os.path.expanduser("~/.openclaw/skills/fts5")  # Keep path for compatibility
 OPENCLAW_DIR = os.path.expanduser("~/.openclaw")
 CRON_HOOK = os.path.expanduser("~/.openclaw/scripts/fts5-indexer.sh")
 ORIGINAL_SELF_IMPROVING = os.path.expanduser("~/self-improving")
-MERGED_SELF_IMPROVING = os.path.join(FTS5_DIR, "self_improving")
+MERGED_SELF_IMPROVING = os.path.join(PFSI_DIR, "self_improving")
+PROACTIVITY_DIR = os.path.expanduser("~/proactivity")
+
+# Version info
+VERSION = "2.0.0"
 
 def print_step(msg):
     print(f"\n📦 {msg}")
@@ -31,32 +36,99 @@ def print_error(msg):
 def print_info(msg):
     print(f"   ℹ️  {msg}")
 
+def print_warning(msg):
+    print(f"   ⚠️  {msg}")
+
 def check_already_installed():
-    """Check if FTS5 is already installed."""
-    return os.path.exists(FTS5_DIR)
+    """Check if PFSI is already installed."""
+    return os.path.exists(PFSI_DIR)
 
 def check_openclaw_installed():
     """Check if OpenClaw is installed."""
     return os.path.exists(OPENCLAW_DIR)
 
+# ── Conflict Detection ──────────────────────────────────────────
+
+def check_existing_self_improving():
+    """Check if Self-Improving is already installed."""
+    return os.path.exists(ORIGINAL_SELF_IMPROVING)
+
+def check_existing_proactivity():
+    """Check if Proactivity is already installed."""
+    return os.path.exists(PROACTIVITY_DIR)
+
+def check_conflicts():
+    """
+    Check for potential conflicts with existing installations.
+    Returns dict with conflict information.
+    """
+    conflicts = {
+        'self_improving': check_existing_self_improving(),
+        'proactivity': check_existing_proactivity(),
+        'pfsi': check_already_installed(),
+    }
+    
+    # Check for version mismatches
+    if conflicts['self_improving']:
+        si_memory = os.path.join(ORIGINAL_SELF_IMPROVING, "memory.md")
+        if os.path.exists(si_memory):
+            # Check if PFSI-specific patterns exist
+            with open(si_memory, 'r') as f:
+                content = f.read()
+                if "PFSI" in content or "Proactive" in content:
+                    conflicts['si_version_mismatch'] = True
+
+    if conflicts['proactivity']:
+        pv = os.path.join(PROACTIVITY_DIR, "memory.md")
+        if os.path.exists(pv):
+            with open(pv, 'r') as f:
+                content = f.read()
+                if "PFSI" in content:
+                    conflicts['pv_version_mismatch'] = True
+
+    return conflicts
+
+def report_conflicts(conflicts):
+    """Report detected conflicts to user."""
+    print_step("Checking for existing installations...")
+    
+    if conflicts['pfsi']:
+        print_warning(f"PFSI already installed at {PFSI_DIR}")
+        response = input("   Re-install? [y/N]: ").strip().lower()
+        if response != 'y':
+            print_info("Keeping existing installation")
+            return False
+        print_info("Proceeding with re-installation...")
+    
+    if conflicts['self_improving']:
+        print_success(f"Found existing Self-Improving: {ORIGINAL_SELF_IMPROVING}")
+        print_info("Your learning data will be preserved and integrated")
+    
+    if conflicts['proactivity']:
+        print_success(f"Found existing Proactivity: {PROACTIVITY_DIR}")
+        print_info("PFSI will integrate with your existing Proactivity setup")
+    
+    return True
+
+# ── Cron Setup ──────────────────────────────────────────────────
+
 def create_cron_hook():
-    """Create the FTS5 indexer cron hook script."""
+    """Create the PFSI indexer cron hook script."""
     print_step("Creating cron hook...")
 
-    # Create scripts directory if not exists
     scripts_dir = os.path.dirname(CRON_HOOK)
     os.makedirs(scripts_dir, exist_ok=True)
 
     hook_content = """#!/bin/bash
-# FTS5 Indexer Cron Hook
+# OpenClaw PFSI Indexer Cron Hook
 # This script is triggered by OpenClaw heartbeat to index new messages
 
-FTS5_DIR="$HOME/.openclaw/skills/fts5"
+PFSI_DIR="$HOME/.openclaw/skills/fts5"
 LOG_FILE="$HOME/.openclaw/logs/fts5-indexer.log"
 
-# Run indexer if FTS5 is installed
-if [ -f "$FTS5_DIR/indexer.py" ]; then
-    python3 "$FTS5_DIR/indexer.py" >> "$LOG_FILE" 2>&1
+# Run indexer if PFSI is installed
+if [ -f "$PFSI_DIR/indexer.py" ]; then
+    python3 "$PFSI_DIR/indexer.py" >> "$LOG_FILE" 2>&1
 fi
 """
 
@@ -67,8 +139,8 @@ fi
     print_success(f"Cron hook created: {CRON_HOOK}")
 
 def add_fts5_cron():
-    """Add FTS5 indexer to crontab (tries sudo first, falls back to user)."""
-    print_step("Setting up FTS5 cron (every 5 minutes)...")
+    """Add PFSI indexer to crontab (tries sudo first, falls back to user)."""
+    print_step("Setting up PFSI cron (every 5 minutes)...")
 
     cron_entry = "*/5 * * * * $HOME/.openclaw/scripts/fts5-indexer.sh"
 
@@ -78,7 +150,7 @@ def add_fts5_cron():
         current_cron = result.stdout if result.returncode == 0 else ""
 
         if 'fts5-indexer.sh' in current_cron:
-            print_success("FTS5 cron already configured")
+            print_success("PFSI cron already configured")
             return True
 
         new_cron = current_cron.strip() + '\n' + cron_entry + '\n'
@@ -95,7 +167,7 @@ def add_fts5_cron():
         current_cron = result.stdout if result.returncode == 0 else ""
 
         if 'fts5-indexer.sh' in current_cron:
-            print_success("FTS5 cron already configured")
+            print_success("PFSI cron already configured")
             return True
 
         new_cron = current_cron.strip() + '\n' + cron_entry + '\n'
@@ -106,10 +178,6 @@ def add_fts5_cron():
     except Exception as e:
         print_error(f"User crontab update failed: {e}")
         return False
-
-def check_existing_self_improving():
-    """Check if Self-Improving is already installed."""
-    return os.path.exists(ORIGINAL_SELF_IMPROVING)
 
 def setup_exchange_cron(use_fts5_scripts=True):
     """Setup cron for Self-Improving exchange engine (3 AM daily)."""
@@ -159,6 +227,8 @@ def setup_exchange_cron(use_fts5_scripts=True):
         print_info(f"Manual: {cron_entry}")
         return False
 
+# ── Integration Setup ────────────────────────────────────────────
+
 def setup_self_improving_integration():
     """
     Handle Self-Improving integration.
@@ -174,16 +244,13 @@ def setup_self_improving_integration():
         print_info("Scripts will auto-detect and use existing installation")
         print_info("Your learning data is preserved and will continue growing")
 
-        # Offer to update cron to use new scripts
-        print("\n   Would you like to update your cron to use the new scripts from FTS5?")
-        print("   (The new scripts have auto-detection and work with both locations)")
-        response = input("   Update cron to FTS5 scripts? [y/N]: ").strip().lower()
+        print("\n   Would you like to update your cron to use the new PFSI scripts?")
+        response = input("   Update cron to PFSI scripts? [y/N]: ").strip().lower()
 
         if response == 'y':
             setup_exchange_cron(use_fts5_scripts=True)
         else:
             print_info("Keeping existing cron configuration")
-            # Still try to set up exchange cron from original location
             setup_exchange_cron(use_fts5_scripts=False)
 
     elif has_merged:
@@ -192,14 +259,35 @@ def setup_self_improving_integration():
 
     else:
         print_info("No existing Self-Improving found")
-        print_info("Self-Improving is embedded in FTS5 repo and ready to use")
+        print_info("Self-Improving is embedded in PFSI repo and ready to use")
+
+def setup_proactivity_integration():
+    """
+    Handle Proactivity integration.
+    Proactivity is auto-detected and integrated.
+    """
+    print_step("Checking Proactivity integration...")
+    
+    has_proactivity = check_existing_proactivity()
+    
+    if has_proactivity:
+        print_success(f"Found existing Proactivity: {PROACTIVITY_DIR}")
+        print_info("PFSI will automatically integrate with Proactivity")
+        print_info("Proactive checks will use your existing session-state.md")
+    else:
+        print_info("No existing Proactivity found")
+        print_info("PFSI will create its own Proactivity state directory")
+        print_info("To install Proactivity separately: clawhub install proactivity")
+
+# ── Main ─────────────────────────────────────────────────────────
 
 def main():
-    print("""
+    print(f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║   FTS5 Installer                                             ║
-║   Full-Text Search for OpenClaw                              ║
+║   OpenClaw PFSI Installer                                    ║
+║   Proactive Full-text Self-improving Integration             ║
+║   Version {VERSION}                                             ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
     """)
@@ -212,22 +300,20 @@ def main():
 
     print_success("OpenClaw found")
 
-    # Check FTS5 installed
-    if check_already_installed():
-        print_info("FTS5 is already installed")
-        print_info(f"Location: {FTS5_DIR}")
-        response = input("\n   Re-install? [y/N]: ").strip().lower()
-        if response != 'y':
-            print("Installation cancelled")
-            sys.exit(0)
+    # Check for conflicts
+    conflicts = check_conflicts()
+    if not report_conflicts(conflicts):
+        print("\nInstallation cancelled")
+        sys.exit(0)
 
     # Create cron hook
     create_cron_hook()
 
-    # Setup Self-Improving integration
+    # Setup integrations
     setup_self_improving_integration()
+    setup_proactivity_integration()
 
-    # Setup FTS5 cron
+    # Setup PFSI cron
     print("\n⚠️  Cron setup requires sudo for system-wide installation")
     response = input("   Setup cron for automatic indexing? [Y/n]: ").strip().lower()
     if response != 'n':
@@ -237,11 +323,10 @@ def main():
         print_info("Run 'python3 $HOME/.openclaw/skills/fts5/indexer.py' manually")
 
     # Summary
-    home = os.path.expanduser("~")
     print(f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                                                              ║
-║   ✅ FTS5 Installation Complete!                              ║
+║   ✅ OpenClaw PFSI Installation Complete!                     ║
 ║                                                              ║
 ╚══════════════════════════════════════════════════════════════╝
 
@@ -261,16 +346,16 @@ def main():
       openclaw gateway restart
 
 📚 Documentation:
-   English: $HOME/.openclaw/skills/fts5/README_EN.md
-   中文:   $HOME/.openclaw/skills/fts5/README_ZH.md
+   Main: $HOME/.openclaw/skills/fts5/README.md
 
 ⚙️  Cron Hooks:
-   FTS5 Indexer: $HOME/.openclaw/scripts/fts5-indexer.sh (every 5 min)
+   PFSI Indexer: $HOME/.openclaw/scripts/fts5-indexer.sh (every 5 min)
    Self-Improving Exchange: $HOME/.openclaw/skills/fts5/self_improving/scripts/exchange-cron.sh (3 AM daily)
 
-🧠 Self-Improving:
-   Existing installations are automatically detected and preserved
-   Your learning data will continue to grow in the original location
+🧠 Integrations:
+   Self-Improving: Auto-detected (existing installations preserved)
+   Proactivity: Auto-detected (existing installations integrated)
+   Database: Auto-created at ~/.openclaw/fts5.db (never committed to repo)
 """)
 
 if __name__ == "__main__":
