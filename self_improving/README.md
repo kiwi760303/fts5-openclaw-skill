@@ -33,7 +33,7 @@ self_improving/
 
 ```bash
 # 1. Clone
-git clone https://github.com/ZCrystalC33/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+git clone https://github.com/ZCrystalC33/openclaw-pfsi.git ~/.openclaw/skills/fts5
 
 # 2. If you already have ~/self-improving/, scripts will auto-detect it
 

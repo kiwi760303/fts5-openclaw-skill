@@ -45,7 +45,7 @@ metadata: {
 
 ```bash
 # Install FTS5 + Self-Improving (combined)
-git clone https://github.com/ZCrystalC33/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+git clone https://github.com/ZCrystalC33/openclaw-pfsi.git ~/.openclaw/skills/fts5
 
 # Configure API key
 cp ~/.openclaw/skills/fts5/config.env.example ~/.openclaw/fts5.env
