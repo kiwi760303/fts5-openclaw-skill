@@ -1,161 +1,405 @@
 #!/usr/bin/env python3
 """
-FTS5 Onboarding Setup
-首次使用時引導使用者設定 API Key
+FTS5 Onboarding Wizard
+Step-by-step setup guide for FTS5 skill
 """
 
 import os
 import sys
 import json
+import urllib.request
+import urllib.error
+
+# ANSI color codes
+RED = '\033[91m'
+GREEN = '\033[92m'
+YELLOW = '\033[93m'
+BLUE = '\033[94m'
+CYAN = '\033[96m'
+BOLD = '\033[1m'
+RESET = '\033[0m'
 
 SETUP_FILE = os.path.expanduser("~/.openclaw/fts5.env")
 CONFIG_FILE = os.path.expanduser("~/.openclaw/config.json")
 OPENCLAW_DIR = os.path.expanduser("~/.openclaw")
 
 
-def check_openclaw_dir():
-    """確保 ~/.openclaw 目錄存在"""
-    if not os.path.exists(OPENCLAW_DIR):
-        print(f"❌ OpenClaw 目錄不存在：{OPENCLAW_DIR}")
-        print("   請先安裝 OpenClaw")
-        return False
+def clear_screen():
+    """Clear terminal screen."""
+    os.system('clear' if os.name != 'nt' else 'cls')
+
+
+def print_banner():
+    """Display welcome banner."""
+    clear_screen()
+    print(f"""
+{BOLD}{CYAN}╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   {YELLOW}FTS5 Full-Text Search for OpenClaw{ CYAN}                      ║
+║   {BLUE}Version 1.2.0 - Onboarding Wizard{ CYAN}                         ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝{RESET}
+""")
+
+
+def print_step(current: int, total: int, title: str):
+    """Display step header."""
+    print(f"\n{BOLD}{YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}")
+    print(f"{BOLD}{CYAN}  Step {current}/{total}: {title}{RESET}")
+    print(f"{YELLOW}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━{RESET}\n")
+
+
+def print_success(msg: str):
+    print(f"  {GREEN}✅ {msg}{RESET}")
+
+
+def print_error(msg: str):
+    print(f"  {RED}❌ {msg}{RESET}")
+
+
+def print_info(msg: str):
+    print(f"  {BLUE}ℹ️  {msg}{RESET}")
+
+
+def print_warning(msg: str):
+    print(f"  {YELLOW}⚠️  {msg}{RESET}")
+
+
+def input_with_default(prompt: str, default: str) -> str:
+    """Get input with default value."""
+    result = input(f"  {prompt} [{default}]: ").strip()
+    return result if result else default
+
+
+def check_prerequisites() -> bool:
+    """Step 1: Check system prerequisites."""
+    print_step(1, 6, "System Prerequisites Check")
+    
+    all_ok = True
+    
+    # Check Python version
+    print("  Checking Python version...")
+    version = sys.version_info
+    if version.major >= 3 and version.minor >= 7:
+        print_success(f"Python {version.major}.{version.minor}.{version.micro} ✓")
+    else:
+        print_error(f"Python {version.major}.{version.minor} - requires 3.7+")
+        all_ok = False
+    
+    # Check SQLite
+    print("\n  Checking SQLite...")
+    try:
+        import sqlite3
+        version = sqlite3.sqlite_version
+        print_success(f"SQLite {version} ✓")
+    except ImportError:
+        print_error("SQLite3 not available")
+        all_ok = False
+    
+    # Check OpenClaw directory
+    print("\n  Checking OpenClaw directory...")
+    if os.path.exists(OPENCLAW_DIR):
+        print_success(f"OpenClaw directory found: {OPENCLAW_DIR}")
+    else:
+        print_warning(f"OpenClaw directory not found: {OPENCLAW_DIR}")
+        print_info("Will create on first run")
+    
+    # Check internet connectivity
+    print("\n  Checking internet connectivity...")
+    try:
+        urllib.request.urlopen("https://api.minimax.io/", timeout=5)
+        print_success("Internet connection OK")
+    except:
+        print_error("Cannot reach api.minimax.io")
+        all_ok = False
+    
+    if not all_ok:
+        print(f"\n  {YELLOW}Some prerequisites failed. You may still proceed, but functionality may be limited.{RESET}")
+        input("\n  Press Enter to continue...")
+    
     return True
 
 
-def check_current_config():
-    """檢查現有設定"""
-    print("🔍 檢查現有設定...")
+def get_api_key_guide() -> str:
+    """Step 2: Guide user to get MiniMax API key."""
+    print_step(2, 6, "Get MiniMax API Key")
     
-    # 1. 環境變數
-    env_key = os.environ.get("MINIMAX_API_KEY")
-    if env_key:
-        print("✅ 偵測到環境變數 MINIMAX_API_KEY")
-        return True, "env"
-    
-    # 2. 設定檔
-    if os.path.exists(SETUP_FILE):
-        with open(SETUP_FILE, 'r') as f:
-            content = f.read()
-            if "sk-cp-" in content or "YOUR_API_KEY" in content:
-                print("⚠️ 偵測到設定檔，但尚未填入真實 API Key")
-                return False, "config_empty"
-            with open(SETUP_FILE, 'r') as f2:
-                for line in f2:
-                    if line.startswith("MINIMAX_API_KEY=") and len(line.split("=", 1)[1].strip()) > 10:
-                        print("✅ 偵測到設定檔中的 API Key")
-                        return True, "config"
-    
-    # 3. config.json
-    if os.path.exists(CONFIG_FILE):
-        try:
-            with open(CONFIG_FILE, 'r') as f:
-                config = json.load(f)
-                if "fts5" in config and config["fts5"].get("api_key"):
-                    print("✅ 偵測到 config.json 中的 API Key")
-                    return True, "config_json"
-        except:
-            pass
-    
-    return False, None
-
-
-def prompt_api_key():
-    """引導使用者輸入 API Key"""
-    print("\n" + "="*50)
-    print("📋 FTS5 系統設定")
-    print("="*50)
-    print("""
-FTS5 需要 MiniMax API Key 才能運作。
-
-請選擇設定方式：
-
-1. 環境變數（建議）
-   export MINIMAX_API_KEY=sk-cp-xxxxxxxxxxxxx
-   # 然後重新執行此腳本
-
-2. 設定檔（一次性設定）
-   輸入您的 API Key，我們會幫您建立設定檔
-
-3. 略過（稍後手動設定）
-   您可以稍後編輯 ~/.openclaw/fts5.env
+    print(f"""  {BOLD}To use FTS5, you need a MiniMax API Key.{RESET}
+  
+  {CYAN}How to get your API Key:{RESET}
+  
+  1. Visit {BLUE}https://platform.minimax.io/{RESET}
+  2. Create an account or log in
+  3. Go to API Keys section
+  4. Create a new API Key
+  5. Copy the key (starts with 'sk-cp-' or 'sk-')
+  
+  {YELLOW}Your key will only be stored locally and never shared.{RESET}
 """)
     
-    choice = input("請選擇 [1/2/3]: ").strip()
+    input("  Press Enter when you have your API Key ready...")
     
-    if choice == "1":
-        if os.environ.get("MINIMAX_API_KEY"):
-            print("✅ 環境變數已設定")
-            return True
+    while True:
+        print("\n  Paste your API Key below:")
+        api_key = input(f"  {CYAN}Key (sk-cp-...): {RESET}").strip()
+        
+        if not api_key:
+            print_error("Key cannot be empty")
+            continue
+        
+        if len(api_key) < 20:
+            print_warning("Key seems too short, please double-check")
+            confirm = input("  Continue anyway? [y/N]: ").strip().lower()
+            if confirm != 'y':
+                continue
+        
+        return api_key
+
+
+def save_api_key(api_key: str) -> bool:
+    """Step 3: Save API key to config."""
+    print_step(3, 6, "Save Configuration")
+    
+    os.makedirs(os.path.dirname(SETUP_FILE), exist_ok=True)
+    
+    print(f"\n  Saving to: {SETUP_FILE}")
+    
+    try:
+        with open(SETUP_FILE, 'w') as f:
+            f.write(f"# FTS5 Configuration\n")
+            f.write(f"# Generated by FTS5 Onboarding Wizard\n")
+            f.write(f"# Created: {__import__('datetime').datetime.now().isoformat()}\n")
+            f.write(f"\n")
+            f.write(f"# MiniMax API Key\n")
+            f.write(f"MINIMAX_API_KEY={api_key}\n")
+        
+        print_success("Configuration saved!")
+        print_info(f"File: {SETUP_FILE}")
+        
+        # Set file permissions to be private
+        os.chmod(SETUP_FILE, 0o600)
+        print_info("File permissions set to 600 (private)")
+        
+        return True
+        
+    except Exception as e:
+        print_error(f"Failed to save: {e}")
+        return False
+
+
+def test_connection(api_key: str) -> bool:
+    """Step 4: Test API connection."""
+    print_step(4, 6, "Test API Connection")
+    
+    print(f"\n  Testing MiniMax API connection...")
+    
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+        "x-api-key": api_key,
+        "anthropic-version": "2023-06-01"
+    }
+    
+    data = {
+        "model": "MiniMax-M2.7",
+        "max_tokens": 10,
+        "messages": [{"role": "user", "content": "Hi"}]
+    }
+    
+    try:
+        req = urllib.request.Request(
+            "https://api.minimax.io/anthropic/v1/messages",
+            data=json.dumps(data).encode('utf-8'),
+            headers=headers,
+            method="POST"
+        )
+        
+        with urllib.request.urlopen(req, timeout=15) as response:
+            result = json.loads(response.read())
+            content = result.get('content', [])
+            for item in content:
+                if item.get('type') == 'text':
+                    print_success(f"API responded: '{item['text'][:50]}...'")
+                    return True
+        
+        print_error("No response content")
+        return False
+        
+    except urllib.error.HTTPError as e:
+        print_error(f"HTTP Error: {e.code}")
+        if e.code == 401:
+            print_info("Invalid API key - please check and try again")
+        elif e.code == 429:
+            print_info("Rate limited - please wait and try again")
+        return False
+        
+    except urllib.error.URLError as e:
+        print_error(f"Connection failed: {e.reason}")
+        return False
+        
+    except Exception as e:
+        print_error(f"Unexpected error: {e}")
+        return False
+
+
+def index_existing_conversations() -> bool:
+    """Step 5: Index existing conversations."""
+    print_step(5, 6, "Index Existing Conversations")
+    
+    print(f"""
+  {BOLD}This step indexes your existing OpenClaw conversations{RESET}
+  {YELLOW}(This is optional and may take a few minutes){RESET}
+  
+  Indexed data is stored locally in:
+  {BLUE}~/.openclaw/fts5.db{RESET}
+""")
+    
+    choice = input("  Index existing conversations? [Y/n]: ").strip().lower()
+    
+    if choice == 'n':
+        print_info("Skipped - you can run this later with:")
+        print(f"    {CYAN}python3 ~/.openclaw/skills/fts5/indexer.py{RESET}")
+        return False
+    
+    print("\n  Running indexer...")
+    print_info("This may take a few minutes for large conversation histories...")
+    
+    try:
+        sys.path.insert(0, os.path.dirname(__file__))
+        from indexer import import_all_sessions
+        
+        sessions_dir = os.path.expanduser("~/.openclaw/agents/main/sessions")
+        
+        if not os.path.exists(sessions_dir):
+            print_warning(f"Sessions directory not found: {sessions_dir}")
+            print_info("Skipping indexing - run indexer.py later when you have sessions")
+            return False
+        
+        results = import_all_sessions(sessions_dir)
+        
+        if results:
+            total = sum(results.values())
+            print_success(f"Indexed {total} messages from {len(results)} session files!")
         else:
-            print("❌ 請先設定環境變數後重新執行")
-            print("   export MINIMAX_API_KEY=sk-cp-xxxxxxxxxxxxx")
-            return False
-    
-    elif choice == "2":
-        return setup_config_file()
-    
-    elif choice == "3":
-        create_empty_config()
-        print("✅ 已建立空白設定檔，請稍後編輯 ~/.openclaw/fts5.env")
-        return False
-    
-    else:
-        print("❌ 無效選項")
+            print_info("No new messages to index (or sessions directory empty)")
+        
+        return True
+        
+    except Exception as e:
+        print_error(f"Indexing failed: {e}")
+        print_info("You can run the indexer manually later:")
+        print(f"    {CYAN}python3 ~/.openclaw/skills/fts5/indexer.py{RESET}")
         return False
 
 
-def setup_config_file():
-    """設定設定檔"""
-    print("\n📝 請輸入您的 MiniMax API Key")
-    print("   (格式：sk-cp-xxxxxxxxxxxxx)")
+def show_summary(api_key: str, indexed: bool):
+    """Step 6: Show setup summary."""
+    print_step(6, 6, "Setup Complete!")
     
-    api_key = input("\nAPI Key: ").strip()
+    masked_key = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
     
-    if not api_key or len(api_key) < 20:
-        print("❌ API Key 格式不正確")
-        return False
+    print(f"""
+{BOLD}{GREEN}╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   🎉 FTS5 Setup Complete!                                    ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝{RESET}
+
+  {BOLD}Configuration:{RESET}
+    API Key: {CYAN}{masked_key}{RESET}
+    Config:  {CYAN}~/.openclaw/fts5.env{RESET}
+    Database: {CYAN}~/.openclaw/fts5.db{RESET}
+
+  {BOLD}Quick Start:{RESET}
+    from skills.fts5 import search, summarize
     
-    if not api_key.startswith("sk-"):
-        print("⚠️ API Key 通常以 sk- 開頭，確認嗎？")
-        confirm = input("繼續？ [y/N]: ").strip().lower()
-        if confirm != 'y':
-            return False
+    # Simple search
+    results = search("your query", limit=5)
     
-    # 建立設定檔
-    os.makedirs(os.path.dirname(SETUP_FILE), exist_ok=True)
+    # LLM summary
+    result = summarize("your query")
+    print(result['summary'])
+
+  {BOLD}Useful Commands:{RESET}
+    # Re-run setup
+    python3 ~/.openclaw/skills/fts5/setup.py
     
-    with open(SETUP_FILE, 'w') as f:
-        f.write(f"# FTS5 設定檔\n")
-        f.write(f"# 請填入您的 MiniMax API Key\n")
-        f.write(f"MINIMAX_API_KEY={api_key}\n")
+    # Index conversations
+    python3 ~/.openclaw/skills/fts5/indexer.py
     
-    print(f"\n✅ 設定檔已儲存：{SETUP_FILE}")
-    return True
+    # Check stats
+    python3 -c "from skills.fts5 import get_stats; print(get_stats())"
+
+  {BOLD}Next Steps:{RESET}
+    1. Restart your OpenClaw agent
+    2. Try: "上次我們談的 FTS5 系統"
+    3. Enjoy smart conversation history!
+
+{YELLOW}═══════════════════════════════════════════════════════════════════{RESET}
+""")
 
 
-def create_empty_config():
-    """建立空白設定檔"""
-    os.makedirs(os.path.dirname(SETUP_FILE), exist_ok=True)
+def run_full_setup():
+    """Run the complete onboarding wizard."""
+    print_banner()
     
-    with open(SETUP_FILE, 'w') as f:
-        f.write("# FTS5 設定檔\n")
-        f.write("# 請填入您的 MiniMax API Key\n")
-        f.write("MINIMAX_API_KEY=sk-cp-YOUR_KEY_HERE\n")
+    print(f"""
+  {BOLD}Welcome to FTS5 Onboarding!{RESET}
+  
+  This wizard will guide you through setting up FTS5:
+  {CYAN}• Check system requirements{RESET}
+  {CYAN}• Configure your API key{RESET}
+  {CYAN}• Test the connection{RESET}
+  {CYAN}• Optionally index existing conversations{RESET}
+  
+  Let's get started!
+""")
     
-    print(f"✅ 已建立空白設定檔：{SETUP_FILE}")
+    input("  Press Enter to begin...")
+    
+    # Step 1: Prerequisites
+    check_prerequisites()
+    
+    # Step 2: Get API key
+    api_key = get_api_key_guide()
+    
+    # Step 3: Save config
+    if not save_api_key(api_key):
+        print_error("Failed to save configuration")
+        input("\n  Press Enter to exit...")
+        sys.exit(1)
+    
+    # Step 4: Test connection
+    if not test_connection(api_key):
+        print_warning("API connection failed, but configuration is saved")
+        print_info("You can re-test with: python3 ~/.openclaw/skills/fts5/setup.py")
+        retry = input("\n  Continue anyway? [y/N]: ").strip().lower()
+        if retry != 'y':
+            print_info("Setup incomplete - please try again later")
+            sys.exit(0)
+    
+    # Step 5: Index (optional)
+    indexed = index_existing_conversations()
+    
+    # Step 6: Summary
+    print_banner()
+    show_summary(api_key, indexed)
+    
+    input("\n  Press Enter to exit setup...")
 
 
-def verify_setup():
-    """驗證設定是否正確"""
-    print("\n🔧 驗證設定...")
+def check_existing():
+    """Check if already configured."""
+    print_banner()
     
-    # 讀取 API Key
+    # Check for existing config
     api_key = None
+    source = None
     
     env_key = os.environ.get("MINIMAX_API_KEY")
     if env_key:
         api_key = env_key
-        print("✅ 使用環境變數")
+        source = "environment variable (MINIMAX_API_KEY)"
     
     if not api_key and os.path.exists(SETUP_FILE):
         with open(SETUP_FILE, 'r') as f:
@@ -164,76 +408,58 @@ def verify_setup():
                     key = line.split("=", 1)[1].strip()
                     if key and key != "sk-cp-YOUR_KEY_HERE":
                         api_key = key
-                        print("✅ 使用設定檔")
+                        source = f"config file ({SETUP_FILE})"
                         break
     
-    if not api_key:
-        print("❌ 無法讀取 API Key")
-        return False
-    
-    # 測試連線
-    print("\n🧪 測試 API 連線...")
-    try:
-        import urllib.request
-        import json
+    if api_key:
+        masked = api_key[:8] + "..." + api_key[-4:] if len(api_key) > 12 else "***"
+        print(f"""
+  {BOLD}✅ FTS5 is already configured!{RESET}
+  
+  API Key: {CYAN}{masked}{RESET}
+  Source: {source}
+  
+  Config file: {SETUP_FILE}
+  
+  {YELLOW}What would you like to do?{RESET}
+  
+    [1] Re-run full setup wizard
+    [2] Test API connection only
+    [3] Re-index conversations
+    [4] Exit
+  
+""")
+        choice = input("  Select option [1-4]: ").strip()
         
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01"
-        }
-        
-        data = {
-            "model": "MiniMax-M2.7",
-            "max_tokens": 10,
-            "messages": [{"role": "user", "content": "Hi"}]
-        }
-        
-        req = urllib.request.Request(
-            "https://api.minimax.io/anthropic/v1/messages",
-            data=json.dumps(data).encode('utf-8'),
-            headers=headers,
-            method="POST"
-        )
-        
-        with urllib.request.urlopen(req, timeout=10) as response:
-            print("✅ API 連線成功！")
-            return True
-            
-    except Exception as e:
-        print(f"❌ API 連線失敗：{e}")
-        return False
+        if choice == "1":
+            run_full_setup()
+        elif choice == "2":
+            test_connection(api_key)
+            input("\n  Press Enter to exit...")
+        elif choice == "3":
+            index_existing_conversations()
+            input("\n  Press Enter to exit...")
+        else:
+            print_info("Goodbye!")
+            sys.exit(0)
+    else:
+        print(f"""
+  {YELLOW}FTS5 is not configured yet.{RESET}
+  
+  This wizard will help you set it up.
+""")
+        input("  Press Enter to begin setup...")
+        run_full_setup()
 
 
 def main():
-    print("🚀 FTS5 Onboarding Setup")
-    print("="*50)
-    
-    # 檢查 OpenClaw 目錄
-    if not check_openclaw_dir():
-        sys.exit(1)
-    
-    # 檢查現有設定
-    configured, source = check_current_config()
-    
-    if configured:
-        print(f"\n✅ FTS5 已設定完成（來源：{source}）")
-        verify = input("是否要驗證？ [Y/n]: ").strip().lower()
-        if verify != 'n':
-            if verify_setup():
-                print("\n🎉 FTS5 已就緒！")
-            else:
-                print("\n⚠️ 設定可能有问题，請重新執行此腳本")
-        return
-    
-    # 尚未設定，引導設定
-    print("\n⚠️ 尚未設定 FTS5 API Key")
-    if prompt_api_key():
-        if verify_setup():
-            print("\n🎉 FTS5 設定完成！")
-        else:
-            print("\n⚠️ 設定完成但驗證失敗，請檢查 API Key")
+    """Main entry point."""
+    try:
+        check_existing()
+    except KeyboardInterrupt:
+        print(f"\n\n  {YELLOW}Setup interrupted.{RESET}")
+        print_info("Run setup.py again anytime to reconfigure.")
+        sys.exit(0)
 
 
 if __name__ == "__main__":
