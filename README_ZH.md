@@ -66,28 +66,6 @@ stats = get_stats()
 print(f"已索引訊息數: {stats['total']}")
 ```
 
-## 🎓 完整體驗 - 建議同時安裝
-
-FTS5 單獨使用就很強，但配上 **Self-Improving + Proactivity**，你的 AI 會真正變得更聰明：
-
-### ⭐ 推薦組合
-
-| 技能 | 功能 | 安裝方式 |
-|------|------|---------|
-| **FTS5**（這個） | 記住對話歷史 | 已經安裝了！ |
-| **Self-Improving** | 從修正中學習，越用越強 | OpenClaw 內建 |
-| **Proactivity** | 主動提醒、建議，不需要吩咐 | OpenClaw 內建 |
-
-### 為什麼三個都要？
-
-```
-FTS5       → 記得你「討論過什麼」
-Self-Improving → 記得你「糾正過什麼」
-Proactivity  → 主動「執行所知道的事」，不需要提醒
-
-三者合一    → 真正了解你的 AI
-```
-
 ## 📋 完整安裝指南
 
 ### 前置需求
@@ -108,8 +86,6 @@ python3 ~/.openclaw/skills/fts5/setup.py
 # 重啟 OpenClaw
 openclaw gateway restart
 ```
-
-**注意：** Self-Improving 和 Proactivity 是 OpenClaw 內建功能（不需額外安裝）。
 
 ## 🔧 設定
 

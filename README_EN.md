@@ -66,28 +66,6 @@ stats = get_stats()
 print(f"Total messages indexed: {stats['total']}")
 ```
 
-## 🎓 For Best Experience - Install Together
-
-FTS5 works great alone, but with **Self-Improving + Proactivity**, your AI becomes truly intelligent:
-
-### ⭐ Recommended Stack
-
-| Skill | What it does | Install |
-|-------|-------------|---------|
-| **FTS5** (this) | Remember conversation history | Already installed! |
-| **Self-Improving** | Learns from corrections, gets better | Built-in with OpenClaw |
-| **Proactivity** | Proactively reminds, suggests | Built-in with OpenClaw |
-
-### Why All Three?
-
-```
-FTS5      → Remembers WHAT you discussed
-Self-Improving → Remembers WHAT you corrected
-Proactivity → Acts on WHAT it knows, unprompted
-
-Together  → AI that truly understands you
-```
-
 ## 📋 Complete Installation Guide
 
 ### Prerequisites
@@ -108,8 +86,6 @@ python3 ~/.openclaw/skills/fts5/setup.py
 # Restart OpenClaw
 openclaw gateway restart
 ```
-
-**Note:** Self-Improving and Proactivity are built-in with OpenClaw (no separate install needed).
 
 ## 🔧 Configuration
 
