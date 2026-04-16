@@ -75,8 +75,8 @@ FTS5 單獨使用就很強，但配上 **Self-Improving + Proactivity**，你的
 | 技能 | 功能 | 安裝方式 |
 |------|------|---------|
 | **FTS5**（這個） | 記住對話歷史 | 已經安裝了！ |
-| **[Self-Improving](https://github.com/kiwi760303/self-improving-openclaw)** | 從修正中學習，越用越強 | `git clone ...` |
-| **[Proactivity](https://github.com/kiwi760303/proactivity-openclaw)** | 主動提醒、建議，不需要吩咐 | `git clone ...` |
+| **Self-Improving** | 從修正中學習，越用越強 | OpenClaw 內建 |
+| **Proactivity** | 主動提醒、建議，不需要吩咐 | OpenClaw 內建 |
 
 ### 為什麼三個都要？
 
@@ -96,20 +96,11 @@ Proactivity  → 主動「執行所知道的事」，不需要提醒
 - 已安裝 OpenClaw
 - MiniMax API Key（[免費申請](https://platform.minimax.io/)）
 
-### 安裝 FTS5 + 推薦組合
+### 安裝 FTS5
 
 ```bash
-# 建立 skills 目錄
-mkdir -p ~/.openclaw/skills
-
 # 安裝 FTS5
 git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
-
-# 安裝 Self-Improving（可選但建議）
-git clone https://github.com/kiwi760303/self-improving-openclaw.git ~/.openclaw/skills/self-improving
-
-# 安裝 Proactivity（可選但建議）
-git clone https://github.com/kiwi760303/proactivity-openclaw.git ~/.openclaw/skills/proactivity
 
 # 設定 FTS5
 python3 ~/.openclaw/skills/fts5/setup.py
@@ -117,6 +108,8 @@ python3 ~/.openclaw/skills/fts5/setup.py
 # 重啟 OpenClaw
 openclaw gateway restart
 ```
+
+**注意：** Self-Improving 和 Proactivity 是 OpenClaw 內建功能（不需額外安裝）。
 
 ## 🔧 設定
 

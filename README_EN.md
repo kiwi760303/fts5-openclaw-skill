@@ -75,8 +75,8 @@ FTS5 works great alone, but with **Self-Improving + Proactivity**, your AI becom
 | Skill | What it does | Install |
 |-------|-------------|---------|
 | **FTS5** (this) | Remember conversation history | Already installed! |
-| **[Self-Improving](https://github.com/kiwi760303/self-improving-openclaw)** | Learns from corrections, gets better over time | `git clone ...` |
-| **[Proactivity](https://github.com/kiwi760303/proactivity-openclaw)** | Proactively reminds, suggests, acts without being asked | `git clone ...` |
+| **Self-Improving** | Learns from corrections, gets better | Built-in with OpenClaw |
+| **Proactivity** | Proactively reminds, suggests | Built-in with OpenClaw |
 
 ### Why All Three?
 
@@ -96,20 +96,11 @@ Together  → AI that truly understands you
 - OpenClaw installed
 - MiniMax API Key ([Get one free](https://platform.minimax.io/))
 
-### Install FTS5 + Recommended Stack
+### Install FTS5
 
 ```bash
-# Create skills directory
-mkdir -p ~/.openclaw/skills
-
 # Install FTS5
 git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
-
-# Install Self-Improving (optional but recommended)
-git clone https://github.com/kiwi760303/self-improving-openclaw.git ~/.openclaw/skills/self-improving
-
-# Install Proactivity (optional but recommended)
-git clone https://github.com/kiwi760303/proactivity-openclaw.git ~/.openclaw/skills/proactivity
 
 # Setup FTS5
 python3 ~/.openclaw/skills/fts5/setup.py
@@ -117,6 +108,8 @@ python3 ~/.openclaw/skills/fts5/setup.py
 # Restart OpenClaw
 openclaw gateway restart
 ```
+
+**Note:** Self-Improving and Proactivity are built-in with OpenClaw (no separate install needed).
 
 ## 🔧 Configuration
 
