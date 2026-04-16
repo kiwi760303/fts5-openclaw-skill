@@ -2,7 +2,7 @@
 name: FTS5 Full-Text Search
 slug: fts5
 version: 1.2.0
-description: "SQLite FTS5 full-text search with LLM summarization for OpenClaw. No hardcoded credentials, includes auto-indexing cron hook."
+description: "🎓 SQLite FTS5 full-text search with LLM summarization for OpenClaw. Make your AI remember everything."
 metadata: {
   "clawdbot": {
     "emoji": "🔍",
@@ -16,226 +16,153 @@ metadata: {
 }
 ---
 
-## Overview
+## 🎯 What is FTS5?
 
-FTS5 provides instant full-text search across all OpenClaw conversation history, combined with LLM-powered summarization to give meaningful answers instead of raw search results.
+**FTS5** makes your OpenClaw AI assistant remember everything - past conversations, decisions, preferences. It indexes all history and uses LLM to generate smart summaries.
 
-**Features:**
-- 🔍 SQLite FTS5 full-text search
-- 🤖 LLM summarization (MiniMax)
-- 🌐 Multi-language (zh-TW, zh-CN, en, ja)
-- 🔒 Sensitive data auto-masking
-- ⚡ Rate limiting (30 calls/min)
-- 🛡️ 3-layer error recovery
-- 📊 Smart context management
-- 🔄 Incremental auto-indexing
+> *"The AI that forgets what you discussed is frustrating. FTS5 solves that."*
 
-## Prerequisites
+## ✨ Features
 
-| Requirement | Status | Notes |
-|-------------|--------|-------|
-| Python 3.7+ | ✅ Built-in | Required |
-| SQLite3 | ✅ Built-in | Required for FTS5 |
-| OpenClaw | ⚠️ Required | Must be installed first |
-| MiniMax API Key | ⚠️ Required | User provides |
-| Internet | ✅ Required | For MiniMax API |
+| Feature | Description |
+|---------|-------------|
+| 🔍 **Full-Text Search** | Instant search across all history |
+| 🤖 **LLM Summaries** | Auto-generated in your language |
+| 🌐 **Multi-Language** | zh-TW, zh-CN, en, ja |
+| 🔒 **Secure** | No hardcoded keys, data auto-masked |
+| ⚡ **Fast** | SQLite FTS5, 30 calls/min |
+| 🛡️ **Robust** | 3-layer error recovery |
+| 🔄 **Auto-Index** | Cron-based incremental updates |
 
-## Installation
+## 🚀 Installation
 
-### Step 1: Install OpenClaw (if not installed)
+### Prerequisites
 
-```bash
-# Follow OpenClaw installation guide
-# https://docs.openclaw.ai/
-```
+- Python 3.7+
+- OpenClaw installed
+- MiniMax API Key
 
-### Step 2: Clone FTS5
+### Quick Install
 
 ```bash
+# Install FTS5
 git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
-```
 
-### Step 3: Run Installer (Optional)
-
-```bash
-python3 ~/.openclaw/skills/fts5/install.py
-```
-
-This creates:
-- Cron hook at `~/.openclaw/scripts/fts5-indexer.sh`
-- Optional system crontab entry
-
-### Step 4: Configure API Key
-
-```bash
-# Option A: Environment variable
-export MINIMAX_API_KEY=sk-cp-your-key-here
-
-# Option B: Config file (recommended)
+# Configure API key
 cp ~/.openclaw/skills/fts5/config.env.example ~/.openclaw/fts5.env
-nano ~/.openclaw/fts5.env  # Add your key
-```
+nano ~/.openclaw/fts5.env  # Add MINIMAX_API_KEY
 
-### Step 5: Setup Wizard (Interactive)
-
-```bash
+# Run setup wizard
 python3 ~/.openclaw/skills/fts5/setup.py
-```
 
-This will:
-- ✅ Check system prerequisites
-- ✅ Guide you to get API key
-- ✅ Save configuration
-- ✅ Test API connection
-- ✅ Optionally index existing conversations
-
-### Step 6: Restart OpenClaw
-
-```bash
+# Restart OpenClaw
 openclaw gateway restart
 ```
 
-## Cron Hook Setup (Auto-Indexing)
+## 🎓 For Best Experience
 
-FTS5 includes automatic indexing via cron hook:
-
-### Automatic (via install.py)
+Install the **Full Stack** for a truly intelligent AI assistant:
 
 ```bash
+# FTS5 - Remember conversations
+git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+
+# Self-Improving - Learn from corrections
+git clone https://github.com/kiwi760303/self-improving-openclaw.git ~/.openclaw/skills/self-improving
+
+# Proactivity - Act proactively
+git clone https://github.com/kiwi760303/proactivity-openclaw.git ~/.openclaw/skills/proactivity
+```
+
+| Skill | Purpose | Link |
+|-------|---------|------|
+| FTS5 | Remember WHAT you discussed | [GitHub](https://github.com/kiwi760303/fts5-openclaw-skill) |
+| Self-Improving | Learn WHAT you corrected | [GitHub](https://github.com/kiwi760303/self-improving-openclaw) |
+| Proactivity | Act on WHAT it knows | [GitHub](https://github.com/kiwi760303/proactivity-openclaw) |
+
+## 📋 Installation with Cron Hook
+
+```bash
+# Run installer (creates cron hook)
 python3 ~/.openclaw/skills/fts5/install.py
-# Select Y to setup cron
+
+# Setup API key
+cp ~/.openclaw/skills/fts5/config.env.example ~/.openclaw/fts5.env
+nano ~/.openclaw/fts5.env
+
+# Run setup wizard
+python3 ~/.openclaw/skills/fts5/setup.py
 ```
 
-### Manual Setup
-
-Add to crontab (`crontab -e`):
-
-```cron
-*/5 * * * * $HOME/.openclaw/scripts/fts5-indexer.sh
-```
-
-The hook script at `~/.openclaw/scripts/fts5-indexer.sh` runs indexer every 5 minutes.
-
-## File Structure
+### Cron Hook Location
 
 ```
-~/.openclaw/
-├── skills/fts5/                    # FTS5 Skill
-│   ├── __init__.py                # Main module
-│   ├── llm_summary.py              # LLM + prompts
-│   ├── rate_limiter.py             # 30 calls/min
-│   ├── error_handling.py           # 3-layer fallback
-│   ├── indexer.py                  # Session indexer
-│   ├── sensitive_filter.py         # Data masking
-│   ├── setup.py                    # Interactive wizard
-│   ├── install.py                  # Installer script
-│   ├── config.env.example           # Config template
-│   ├── SKILL.md                    # This file
-│   └── README_*.md                 # Documentation
-├── scripts/
-│   └── fts5-indexer.sh             # Cron hook (auto-created)
-├── fts5.db                         # SQLite database
-└── fts5/
-    └── indexer_state.json          # Indexer state
+~/.openclaw/scripts/fts5-indexer.sh  (auto-created by install.py)
 ```
 
-## Dependencies
+Runs every 5 minutes to index new conversations.
 
-| Module | Python Stdlib | Notes |
-|--------|--------------|-------|
-| sqlite3 | ✅ | Built-in |
-| json | ✅ | Built-in |
-| re | ✅ | Built-in |
-| datetime | ✅ | Built-in |
-| urllib | ✅ | Built-in |
-| os, sys, time | ✅ | Built-in |
-
-**No external dependencies!** FTS5 uses only Python standard library.
-
-## Configuration Priority
-
-1. `MINIMAX_API_KEY` environment variable (highest)
-2. `~/.openclaw/fts5.env` config file
-3. `~/.openclaw/config.json` (fts5.api_key)
-
-## Usage
+## 💬 Usage
 
 ```python
-from skills.fts5 import search, summarize, get_stats
+from skills.fts5 import search, summarize
 
 # Search
-results = search("Discord Bot", limit=5)
+results = search("Docker", limit=5)
 
 # LLM Summary
 result = summarize("上次討論的內容")
 print(result['summary'])
 
-# Statistics
-stats = get_stats()
-print(f"Total: {stats['total']} messages")
+# Stats
+from skills.fts5 import get_stats
+print(get_stats())
 ```
 
-## OpenClaw Integration
+## 📊 File Structure
 
-### Proactivity Integration
-
-Add to `~/.openclaw/workspace/HEARTBEAT.md`:
-
-```markdown
-## FTS5 Triggers
-
-When user says:
-- "上次" / "之前" / "以前" → use summarize()
-- "什麼時候討論過" → use summarize()
-- "怎麼樣了" / "進度" → use summarize() with status
+```
+fts5/
+├── __init__.py              # Main API
+├── llm_summary.py            # LLM + multi-language
+├── rate_limiter.py           # 30 calls/min
+├── error_handling.py         # 3-layer fallback
+├── indexer.py                # Session indexer
+├── sensitive_filter.py       # Data masking
+├── setup.py                  # Interactive wizard
+├── install.py                # Cron hook installer
+├── SKILL.md                 # This file
+└── README_*.md              # Documentation
 ```
 
-### Session Indexing
+## 🔧 Configuration
 
-Indexer reads from:
-```
-~/.openclaw/agents/main/sessions/*.jsonl
-```
+| Method | How |
+|--------|-----|
+| Environment | `export MINIMAX_API_KEY=sk-cp-xxx` |
+| Config file | `~/.openclaw/fts5.env` |
 
-## Troubleshooting
+## 🛡️ Security
 
-### "Module not found"
+- ✅ No hardcoded API keys
+- ✅ User-provided credentials only
+- ✅ Sensitive data auto-masked
+- ✅ Private config (600 permissions)
 
-```bash
-# Ensure FTS5 is in correct location
-ls ~/.openclaw/skills/fts5/
+## 📄 Documentation
 
-# Add to Python path if needed
-export PYTHONPATH=$PYTHONPATH:~/.openclaw/skills
-```
+- [README_EN.md](README_EN.md) - English
+- [README_ZH.md](README_ZH.md) - 繁體中文
 
-### "API connection failed"
-
-1. Check API key is correct in `~/.openclaw/fts5.env`
-2. Verify internet connection
-3. Run setup: `python3 ~/.openclaw/skills/fts5/setup.py`
-
-### "No messages indexed"
-
-1. Check sessions directory exists:
-   ```bash
-   ls ~/.openclaw/agents/main/sessions/
-   ```
-2. Run indexer manually:
-   ```bash
-   python3 ~/.openclaw/skills/fts5/indexer.py
-   ```
-3. Check state file:
-   ```bash
-   cat ~/.openclaw/fts5/indexer_state.json
-   ```
-
-## Version History
-
-- **v1.2.0** (2026-04-16): Onboarding wizard, 30 calls/min, EN/ZH docs
-- **v1.1.0** (2026-04-15): LLM summarization, rate limiting
-- **v1.0.0** (2026-04-14): Initial release
-
-## License
+## 📄 License
 
 MIT License - See LICENSE file
+
+## 🙏 Credits
+
+- [OpenClaw](https://github.com/openclaw/openclaw)
+- [MiniMax](https://platform.minimax.io/)
+
+---
+
+**Version:** 1.2.0 | **Author:** Ophelia Prime

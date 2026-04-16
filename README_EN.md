@@ -1,149 +1,216 @@
 # FTS5 - Full-Text Search for OpenClaw
 
-SQLite FTS5 full-text search with LLM-powered summarization for OpenClaw conversations.
+> 🤖 Make your AI assistant remember everything - past conversations, preferences, decisions.
 
-## Features
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![Version](https://img.shields.io/badge/Version-1.2.0-green.svg)](CHANGELOG.md)
+[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
 
-| Feature | Description |
-|---------|-------------|
-| 🔍 **Full-Text Search** | Instant search across all conversation history |
-| 🤖 **LLM Summarization** | Automatic summary generation with MiniMax |
-| 🌐 **Multi-Language** | Supports zh-TW, zh-CN, en, ja |
-| 🔒 **Sensitive Data Filter** | Auto-masks API keys, tokens, private keys |
-| ⚡ **Rate Limiting** | Protects API (30 calls/min max) |
-| 🛡️ **Error Recovery** | 3-layer fallback on API failure |
-| 📊 **Smart Context** | Auto-adjusts based on query complexity |
-| 🔄 **Incremental Indexing** | Only processes changed session files |
+**FTS5** transforms your OpenClaw AI assistant into a memory powerhouse. It indexes all your conversation history and uses LLM to generate smart summaries - so you never lose context, even from months ago.
 
-## Installation
+## ✨ Why FTS5?
 
-### Prerequisites
+| Without FTS5 | With FTS5 |
+|--------------|-----------|
+| ❌ "What did we discuss last time?" | ✅ Instant answer from history |
+| ❌ Start every conversation from scratch | ✅ AI remembers past context |
+| ❌ Lost decisions and agreements | ✅ Searchable decision history |
+| ❌ Repetitive explanations | ✅ AI knows your preferences |
 
-- Python 3.7+
-- SQLite3 (built-in with Python)
-- MiniMax API Key ([Get one here](https://platform.minimax.io/))
+## 🎯 Features
 
-### Steps
+- 🔍 **Instant Search** - Full-text search across all conversations
+- 🤖 **LLM Summaries** - Auto-generated summaries in your language
+- 🌐 **Multi-Language** - zh-TW, zh-CN, en, ja supported
+- 🔒 **Secure** - Sensitive data auto-masked, no hardcoded keys
+- ⚡ **Fast** - SQLite FTS5, 30 calls/min rate limit
+- 🛡️ **Robust** - 3-layer error recovery
+- 🔄 **Auto-Index** - Incremental updates via cron
+
+## 🚀 Quick Start
 
 ```bash
-# 1. Clone the repository
+# 1. Clone
 git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
 
-# 2. Copy and edit configuration
+# 2. Configure
 cp ~/.openclaw/skills/fts5/config.env.example ~/.openclaw/fts5.env
 nano ~/.openclaw/fts5.env  # Add your MINIMAX_API_KEY
 
-# 3. Run onboarding wizard (recommended)
+# 3. Setup (interactive wizard)
 python3 ~/.openclaw/skills/fts5/setup.py
 
-# 4. Index existing conversations (optional)
-python3 ~/.openclaw/skills/fts5/indexer.py
+# 4. Restart OpenClaw
+openclaw gateway restart
 ```
 
-## Configuration
+That's it! Now ask things like "上次我們談的 FTS5 系統" and get instant answers.
 
-### API Key Setup
-
-**Option A: Environment Variable (Recommended)**
-```bash
-export MINIMAX_API_KEY=sk-cp-your-key-here
-```
-
-**Option B: Config File**
-```bash
-# Edit ~/.openclaw/fts5.env
-MINIMAX_API_KEY=sk-cp-your-key-here
-```
-
-### Priority Order
-1. `MINIMAX_API_KEY` environment variable
-2. `~/.openclaw/fts5.env` config file
-3. `~/.openclaw/config.json` (fts5.api_key)
-
-## Quick Usage
+## 💬 Usage Examples
 
 ```python
-# Simple search
-from skills.fts5 import search, summarize
-
-# Search for messages
-results = search("Discord Bot", limit=5)
+# Search conversation history
+from skills.fts5 import search
+results = search("Docker setup", limit=5)
+for r in results:
+    print(f"{r['timestamp']}: {r['content'][:100]}...")
 
 # LLM-powered summary
-result = summarize("上次討論的內容")
+from skills.fts5 import summarize
+result = summarize("上次討論的專案進度")
 print(result['summary'])
 
 # Get statistics
 from skills.fts5 import get_stats
 stats = get_stats()
-print(f"Total messages: {stats['total']}")
+print(f"Total messages indexed: {stats['total']}")
 ```
 
-## Module Reference
+## 🎓 For Best Experience - Install Together
 
-| Function | Description |
-|----------|-------------|
-| `search(query, limit)` | FTS5 full-text search |
-| `summarize(query, limit)` | Search + LLM summary |
-| `add_message(...)` | Add message to index |
-| `get_recent(limit)` | Get recent messages |
-| `get_stats()` | Database statistics |
+FTS5 works great alone, but with **Self-Improving + Proactivity**, your AI becomes truly intelligent:
 
-## Multi-Language Support
+### ⭐ Recommended Stack
 
-FTS5 auto-detects your query language and uses appropriate prompts:
+| Skill | What it does | Install |
+|-------|-------------|---------|
+| **FTS5** (this) | Remember conversation history | Already installed! |
+| **[Self-Improving](https://github.com/kiwi760303/self-improving-openclaw)** | Learns from corrections, gets better over time | `git clone ...` |
+| **[Proactivity](https://github.com/kiwi760303/proactivity-openclaw)** | Proactively reminds, suggests, acts without being asked | `git clone ...` |
+
+### Why All Three?
+
+```
+FTS5      → Remembers WHAT you discussed
+Self-Improving → Remembers WHAT you corrected
+Proactivity → Acts on WHAT it knows, unprompted
+
+Together  → AI that truly understands you
+```
+
+## 📋 Complete Installation Guide
+
+### Prerequisites
+
+- Python 3.7+
+- OpenClaw installed
+- MiniMax API Key ([Get one free](https://platform.minimax.io/))
+
+### Install FTS5 + Recommended Stack
+
+```bash
+# Create skills directory
+mkdir -p ~/.openclaw/skills
+
+# Install FTS5
+git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+
+# Install Self-Improving (optional but recommended)
+git clone https://github.com/kiwi760303/self-improving-openclaw.git ~/.openclaw/skills/self-improving
+
+# Install Proactivity (optional but recommended)
+git clone https://github.com/kiwi760303/proactivity-openclaw.git ~/.openclaw/skills/proactivity
+
+# Setup FTS5
+python3 ~/.openclaw/skills/fts5/setup.py
+
+# Restart OpenClaw
+openclaw gateway restart
+```
+
+## 🔧 Configuration
+
+### API Key (Required)
+
+```bash
+# Option 1: Environment variable
+export MINIMAX_API_KEY=sk-cp-your-key-here
+
+# Option 2: Config file
+echo "MINIMAX_API_KEY=sk-cp-your-key-here" > ~/.openclaw/fts5.env
+```
+
+### Priority Order
+
+1. `MINIMAX_API_KEY` environment variable
+2. `~/.openclaw/fts5.env` config file
+3. `~/.openclaw/config.json`
+
+## 📊 Auto-Indexing (Cron)
+
+FTS5 automatically indexes new conversations every 5 minutes via cron hook.
+
+```bash
+# View cron hook
+cat ~/.openclaw/scripts/fts5-indexer.sh
+
+# Manual index
+python3 ~/.openclaw/skills/fts5/indexer.py
+
+# Check indexer status
+cat ~/.openclaw/fts5/indexer_state.json
+```
+
+## 🌐 Multi-Language
+
+FTS5 auto-detects and responds in your language:
 
 | Language | Code | Detection |
 |----------|------|-----------|
-| 繁體中文 | `zh-TW` | 開/龍/體 characters |
-| 簡體中文 | `zh-CN` | 开/龙/体 characters |
-| English | `en` | Default |
-| 日本語 | `ja` | Hiragana/Katakana |
+| 繁體中文 | zh-TW | 開/龍/體 |
+| 簡體中文 | zh-CN | 开/龙/体 |
+| English | en | Default |
+| 日本語 | ja | Hiragana/Katakana |
 
-## Error Handling
+## 🛡️ Security
 
-FTS5 has 3-layer error recovery:
+- ✅ No hardcoded API keys
+- ✅ User-provided credentials only
+- ✅ Sensitive data auto-masked
+- ✅ Private config file (600 permissions)
 
-1. **Normal**: Try LLM API call
-2. **Retry**: Wait 5-10s and retry once
-3. **Fallback**: Use template-based summary
-
-No API key? Shows setup instructions instead of crashing.
-
-## File Structure
+## 📁 File Structure
 
 ```
-fts5/
-├── __init__.py           # Main module
-├── llm_summary.py         # LLM + multi-language prompts
-├── rate_limiter.py        # Rate limiting (30 calls/min)
-├── error_handling.py      # 3-layer fallback
-├── indexer.py             # Session indexer
-├── sensitive_filter.py    # Data masking
-├── setup.py               # Interactive onboarding wizard
-├── config.env.example     # Example config
-├── SKILL.md              # OpenClaw skill definition
-└── README.md            # This file
+~/.openclaw/skills/fts5/
+├── __init__.py              # Main API
+├── llm_summary.py            # LLM + multi-language
+├── rate_limiter.py           # 30 calls/min
+├── error_handling.py         # 3-layer fallback
+├── indexer.py                # Session indexer
+├── sensitive_filter.py       # Data masking
+├── setup.py                  # Interactive wizard
+├── install.py                # Installer
+├── README.md                 # This file
+├── README_ZH.md             # 繁體中文
+├── SKILL.md                 # OpenClaw skill
+└── CHANGELOG.md             # Version history
 ```
 
-## Security
+## 🎯 Use Cases
 
-- **No hardcoded credentials** - All API keys are user-provided
-- **Sensitive data masking** - Auto-hides API keys, tokens, private keys
-- **Incremental indexing** - Only processes new/modified files
+| Scenario | Without FTS5 | With FTS5 |
+|----------|--------------|-----------|
+| Ask about past project | "I don't know" | Instant summary |
+| Review decision history | Scroll forever | Search + summarize |
+| Continue interrupted work | Start over | AI recalls context |
+| Onboarding new session | No history | Full conversation context |
 
-## License
+## 🤝 Contributing
 
-MIT License - See [LICENSE](./LICENSE) file.
+Issues and PRs welcome! 
 
-## Acknowledgments
+## 📄 License
 
-- Built for [OpenClaw](https://github.com/openclaw/openclaw) AI assistant framework
-- Uses [MiniMax](https://platform.minimax.io/) for LLM capabilities
-- Powered by SQLite FTS5 full-text search engine
+MIT License - See [LICENSE](./LICENSE)
+
+## 🙏 Credits
+
+- [OpenClaw](https://github.com/openclaw/openclaw) - AI Assistant Framework
+- [MiniMax](https://platform.minimax.io/) - LLM API
 
 ---
 
-**Version:** 1.2.0  
-**Last Updated:** 2026-04-16  
-**GitHub:** https://github.com/kiwi760303/fts5-openclaw-skill
+**Made with ❤️ by Ophelia Prime**
+
+[GitHub](https://github.com/kiwi760303/fts5-openclaw-skill) | [Report Bug](https://github.com/kiwi760303/fts5-openclaw-skill/issues) | [Request Feature](https://github.com/kiwi760303/fts5-openclaw-skill/issues)

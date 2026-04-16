@@ -1,149 +1,216 @@
 # FTS5 - OpenClaw 對話歷史搜尋系統
 
-SQLite FTS5 全文搜尋 + LLM 智慧摘要，為 OpenClaw AI 助理提供對話歷史檢索能力。
+> 🤖 讓你的 AI 助理記住一切 - 過往的對話、偏好、決定。
 
-## 功能特色
+[![授權：MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+[![版本](https://img.shields.io/badge/Version-1.2.0-green.svg)](CHANGELOG.md)
+[![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)](https://www.python.org/)
 
-| 功能 | 說明 |
-|------|------|
-| 🔍 **全文搜尋** | 跨越所有對話歷史的即時搜尋 |
-| 🤖 **LLM 摘要** | 自動根據你的語言生成摘要 |
-| 🌍 **多語言支援** | 繁體中文、簡體中文、英文、日文 |
-| 🔒 **敏感資料過濾** | 自動遮罩 API Key、Token、私鑰 |
-| ⚡ **頻率限制** | API 保護（每分鐘最多 30 次）|
-| 🛡️ **錯誤恢復** | 三層 Fallback 機制 |
-| 📊 **智慧上下文** | 根據查詢複雜度自動調整 |
-| 🔄 **增量索引** | 只處理有變動的檔案 |
+**FTS5** 將你的 OpenClaw AI 助理升級為強大的記憶系統。它索引所有對話歷史並使用 LLM 生成智能摘要 - 就算過了好幾個月，也不會遺失上下文。
 
-## 安裝方式
+## ✨ 為什麼要用 FTS5？
 
-### 前置需求
+| 沒有 FTS5 | 有 FTS5 |
+|-----------|---------|
+| ❌ 「上次我們討論什麼？」 | ✅ 立即從歷史中找到答案 |
+| ❌ 每次對話都從零開始 | ✅ AI 記得過去的上下文 |
+| ❌ 決定和協議遺失 | ✅ 可搜尋的決定歷史 |
+| ❌ 重複解釋同樣的事 | ✅ AI 知道你的偏好 |
 
-- Python 3.7+
-- SQLite3（Python 內建）
-- MiniMax API Key（[申請連結](https://platform.minimax.io/)）
+## 🎯 功能特色
 
-### 安裝步驟
+- 🔍 **即時搜尋** - 跨越所有對話歷史的全文搜尋
+- 🤖 **LLM 摘要** - 自動生成你的語言的摘要
+- 🌐 **多語言** - 支援繁體中文、簡體中文、英文、日文
+- 🔒 **安全** - 敏感資料自動遮罩，無硬編碼 Key
+- ⚡ **快速** - SQLite FTS5，每分鐘 30 次限制
+- 🛡️ **穩健** - 三層錯誤恢復機制
+- 🔄 **自動索引** - 增量更新 via cron
+
+## 🚀 快速開始
 
 ```bash
-# 1. 複製 Repo
+# 1. 複製
 git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
 
-# 2. 複製並編輯設定檔
+# 2. 設定
 cp ~/.openclaw/skills/fts5/config.env.example ~/.openclaw/fts5.env
 nano ~/.openclaw/fts5.env  # 填入你的 MINIMAX_API_KEY
 
-# 3. 執行安裝精靈（建議）
+# 3. 安裝精靈
 python3 ~/.openclaw/skills/fts5/setup.py
 
-# 4. 索引既有的對話（可選）
-python3 ~/.openclaw/skills/fts5/indexer.py
+# 4. 重啟 OpenClaw
+openclaw gateway restart
 ```
 
-## 設定方式
+就這樣！現在問「上次我們談的 FTS5 系統」，立即得到答案。
 
-### API Key 設定
-
-**方式一：環境變數（推薦）**
-```bash
-export MINIMAX_API_KEY=sk-cp-your-key-here
-```
-
-**方式二：設定檔案**
-```bash
-# 編輯 ~/.openclaw/fts5.env
-MINIMAX_API_KEY=sk-cp-your-key-here
-```
-
-### 優先順序
-1. `MINIMAX_API_KEY` 環境變數
-2. `~/.openclaw/fts5.env` 設定檔
-3. `~/.openclaw/config.json` (fts5.api_key)
-
-## 快速使用
+## 💬 使用範例
 
 ```python
-# 簡單搜尋
-from skills.fts5 import search, summarize
+# 搜尋對話歷史
+from skills.fts5 import search
+results = search("Docker 設定", limit=5)
+for r in results:
+    print(f"{r['timestamp']}: {r['content'][:100]}...")
 
-# 搜尋訊息
-results = search("Discord Bot", limit=5)
-
-# LLM 摘要
-result = summarize("上次討論的內容")
+# LLM 智能摘要
+from skills.fts5 import summarize
+result = summarize("上次討論的專案進度")
 print(result['summary'])
 
 # 取得統計
 from skills.fts5 import get_stats
 stats = get_stats()
-print(f"總訊息數: {stats['total']}")
+print(f"已索引訊息數: {stats['total']}")
 ```
 
-## 模組函數
+## 🎓 完整體驗 - 建議同時安裝
 
-| 函數 | 說明 |
-|------|------|
-| `search(query, limit)` | FTS5 全文搜尋 |
-| `summarize(query, limit)` | 搜尋 + LLM 摘要 |
-| `add_message(...)` | 新增訊息到索引 |
-| `get_recent(limit)` | 取得最近訊息 |
-| `get_stats()` | 資料庫統計 |
+FTS5 單獨使用就很強，但配上 **Self-Improving + Proactivity**，你的 AI 會真正變得更聰明：
 
-## 多語言支援
+### ⭐ 推薦組合
 
-FTS5 自動偵測你的查詢語言並使用對應的 Prompt：
+| 技能 | 功能 | 安裝方式 |
+|------|------|---------|
+| **FTS5**（這個） | 記住對話歷史 | 已經安裝了！ |
+| **[Self-Improving](https://github.com/kiwi760303/self-improving-openclaw)** | 從修正中學習，越用越強 | `git clone ...` |
+| **[Proactivity](https://github.com/kiwi760303/proactivity-openclaw)** | 主動提醒、建議，不需要吩咐 | `git clone ...` |
+
+### 為什麼三個都要？
+
+```
+FTS5       → 記得你「討論過什麼」
+Self-Improving → 記得你「糾正過什麼」
+Proactivity  → 主動「執行所知道的事」，不需要提醒
+
+三者合一    → 真正了解你的 AI
+```
+
+## 📋 完整安裝指南
+
+### 前置需求
+
+- Python 3.7+
+- 已安裝 OpenClaw
+- MiniMax API Key（[免費申請](https://platform.minimax.io/)）
+
+### 安裝 FTS5 + 推薦組合
+
+```bash
+# 建立 skills 目錄
+mkdir -p ~/.openclaw/skills
+
+# 安裝 FTS5
+git clone https://github.com/kiwi760303/fts5-openclaw-skill.git ~/.openclaw/skills/fts5
+
+# 安裝 Self-Improving（可選但建議）
+git clone https://github.com/kiwi760303/self-improving-openclaw.git ~/.openclaw/skills/self-improving
+
+# 安裝 Proactivity（可選但建議）
+git clone https://github.com/kiwi760303/proactivity-openclaw.git ~/.openclaw/skills/proactivity
+
+# 設定 FTS5
+python3 ~/.openclaw/skills/fts5/setup.py
+
+# 重啟 OpenClaw
+openclaw gateway restart
+```
+
+## 🔧 設定
+
+### API Key（必填）
+
+```bash
+# 方式一：環境變數
+export MINIMAX_API_KEY=sk-cp-your-key-here
+
+# 方式二：設定檔
+echo "MINIMAX_API_KEY=sk-cp-your-key-here" > ~/.openclaw/fts5.env
+```
+
+### 優先順序
+
+1. `MINIMAX_API_KEY` 環境變數
+2. `~/.openclaw/fts5.env` 設定檔
+3. `~/.openclaw/config.json`
+
+## 📊 自動索引（Cron）
+
+FTS5 每 5 分鐘透過 cron hook 自動索引新對話。
+
+```bash
+# 查看 cron hook
+cat ~/.openclaw/scripts/fts5-indexer.sh
+
+# 手動索引
+python3 ~/.openclaw/skills/fts5/indexer.py
+
+# 檢查索引狀態
+cat ~/.openclaw/fts5/indexer_state.json
+```
+
+## 🌐 多語言支援
+
+FTS5 自動偵測並用你的語言回應：
 
 | 語言 | 代碼 | 偵測方式 |
 |------|------|---------|
-| 繁體中文 | `zh-TW` | 開/龍/體 等字元 |
-| 簡體中文 | `zh-CN` | 开/龙/体 等字元 |
-| 英文 | `en` | 預設 |
-| 日本語 | `ja` | 平假名/片假名 |
+| 繁體中文 | zh-TW | 開/龍/體 |
+| 簡體中文 | zh-CN | 开/龙/体 |
+| English | en | 預設 |
+| 日本語 | ja | 平假名/片假名 |
 
-## 錯誤處理
+## 🛡️ 安全性
 
-FTS5 有三層錯誤恢復機制：
+- ✅ 無硬編碼 API Key
+- ✅ 只使用使用者提供的憑證
+- ✅ 敏感資料自動遮罩
+- ✅ 私人設定檔（600 權限）
 
-1. **正常**：嘗試 LLM API 呼叫
-2. **重試**：等待 5-10 秒後重試一次
-3. **Fallback**：使用模板生成摘要
-
-沒有 API Key？顯示設定說明而不是崩潰。
-
-## 檔案結構
+## 📁 檔案結構
 
 ```
-fts5/
-├── __init__.py           # 主模組
-├── llm_summary.py         # LLM + 多語言 Prompt
-├── rate_limiter.py        # 頻率限制（每分鐘 30 次）
-├── error_handling.py      # 三層 Fallback
-├── indexer.py             # 對話索引器
-├── sensitive_filter.py    # 資料遮罩
-├── setup.py               # 互動式安裝精靈
-├── config.env.example     # 範例設定檔
-├── SKILL.md              # OpenClaw 技能定義
-└── README.md             # 本檔案
+~/.openclaw/skills/fts5/
+├── __init__.py              # 主程式
+├── llm_summary.py            # LLM + 多語言
+├── rate_limiter.py           # 每分鐘 30 次
+├── error_handling.py         # 三層 fallback
+├── indexer.py                # 對話索引器
+├── sensitive_filter.py       # 資料遮罩
+├── setup.py                  # 互動精靈
+├── install.py                # 安裝腳本
+├── README.md                 # 英文說明
+├── README_ZH.md             # 本檔案
+├── SKILL.md                 # OpenClaw 技能
+└── CHANGELOG.md             # 版本記錄
 ```
 
-## 安全性
+## 🎯 使用場景
 
-- **無硬編碼憑證** - 所有 API Key 由使用者提供
-- **敏感資料遮罩** - 自動隱藏 API Key、Token、私鑰
-- **增量索引** - 只處理新增/修改的檔案
+| 情境 | 沒有 FTS5 | 有 FTS5 |
+|------|-----------|---------|
+| 詢問過去的專案 | 「我不知道」 | 立即摘要 |
+| 回顧決定歷史 | 無限滾動 | 搜尋 + 摘要 |
+| 繼續中断的工作 | 從頭開始 | AI 記得上下文 |
+| 新 session 上線 | 沒有歷史 | 完整對話上下文 |
 
-## 授權
+## 🤝 貢獻
 
-MIT License - 詳見 [LICENSE](./LICENSE) 檔案。
+Issues 和 PR 都歡迎！
 
-## 致謝
+## 📄 授權
 
-- 為 [OpenClaw](https://github.com/openclaw/openclaw) AI 助理框架而建
-- 使用 [MiniMax](https://platform.minimax.io/) 提供 LLM 能力
-- 基於 SQLite FTS5 全文搜尋引擎
+MIT License - 詳見 [LICENSE](./LICENSE)
+
+## 🙏 致謝
+
+- [OpenClaw](https://github.com/openclaw/openclaw) - AI 助理框架
+- [MiniMax](https://platform.minimax.io/) - LLM API
 
 ---
 
-**版本：** 1.2.0  
-**更新日期：** 2026-04-16  
-**GitHub：** https://github.com/kiwi760303/fts5-openclaw-skill
+**由 Ophelia Prime 用 ❤️ 製作**
+
+[GitHub](https://github.com/kiwi760303/fts5-openclaw-skill) | [回報問題](https://github.com/kiwi760303/fts5-openclaw-skill/issues) | [請求功能](https://github.com/kiwi760303/fts5-openclaw-skill/issues)
