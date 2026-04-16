@@ -9,15 +9,24 @@ import re
 from datetime import datetime
 from pathlib import Path
 
-# Paths - Support both original ~/self-improving/ and merged ~/.openclaw/skills/fts5/self_improving/
-# Check both locations for backwards compatibility
+# Paths - Priority: Existing ~/self-improving/ > Merged location
+# This ensures backwards compatibility for users who already installed Self-Improving
+
 _SCRIPT_DIR = Path(__file__).parent
-if (_SCRIPT_DIR.parent / "__init__.py").exists():
-    # Running inside FTS5 repo
-    SELF_IMPROVING_DIR = _SCRIPT_DIR.parent
+_ORIGINAL_DIR = Path.home() / "self-improving"
+_MERGED_DIR = _SCRIPT_DIR.parent  # ~/.openclaw/skills/fts5/self_improving
+
+# Prefer existing installation (don't overwrite user's data)
+if _ORIGINAL_DIR.exists():
+    SELF_IMPROVING_DIR = _ORIGINAL_DIR
+    print(f"📌 Using existing Self-Improving: {SELF_IMPROVING_DIR}")
+elif (_MERGED_DIR / "memory.md").exists():
+    SELF_IMPROVING_DIR = _MERGED_DIR
+    print(f"📌 Using merged Self-Improving: {SELF_IMPROVING_DIR}")
 else:
-    # Running from original location
-    SELF_IMPROVING_DIR = Path.home() / "self-improving"
+    # New install - use merged location
+    SELF_IMPROVING_DIR = _MERGED_DIR
+    print(f"📌 New installation at: {SELF_IMPROVING_DIR}")
 
 INDEX_FILE = SELF_IMPROVING_DIR / "index.md"
 MEMORY_FILE = SELF_IMPROVING_DIR / "memory.md"

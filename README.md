@@ -10,6 +10,15 @@
 
 [English README](README_EN.md) | [繁體中文說明](README_ZH.md) | [更新日誌](CHANGELOG.md)
 
+## 📍 Installation Location Priority
+
+**For existing Self-Improving users:** Scripts automatically detect and use your existing `~/self-improving/` installation to preserve all learning data.
+
+| Priority | Location | When Used |
+|----------|----------|-----------|
+| 1st | `~/self-improving/` | User already installed Self-Improving before |
+| 2nd | `~/.openclaw/skills/fts5/self_improving/` | New installation |
+
 ## ⚡ Quick Start
 
 ```bash

@@ -16,17 +16,24 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, List, Tuple
 
-# Paths - Support both original ~/self-improving/ and merged ~/.openclaw/skills/fts5/self_improving/
-# Detect location based on context: if __init__.py exists in parent, we're inside FTS5 repo
-_SCRIPT_DIR = Path(__file__).parent
-_PARENT_DIR = _SCRIPT_DIR.parent
+# Paths - Priority: Existing ~/self-improving/ > Merged location
+# This ensures backwards compatibility for users who already installed Self-Improving
 
-if (_PARENT_DIR / "__init__.py").exists() and (_SCRIPT_DIR.name == "scripts"):
-    # Running inside FTS5 repo at ~/.openclaw/skills/fts5/self_improving/scripts/
-    SELF_IMPROVING_DIR = _PARENT_DIR
+_SCRIPT_DIR = Path(__file__).parent
+_ORIGINAL_DIR = Path.home() / "self-improving"
+_MERGED_DIR = _SCRIPT_DIR.parent  # ~/.openclaw/skills/fts5/self_improving
+
+# Prefer existing installation (don't overwrite user's data)
+if _ORIGINAL_DIR.exists():
+    SELF_IMPROVING_DIR = _ORIGINAL_DIR
+    print(f"📌 Using existing Self-Improving: {SELF_IMPROVING_DIR}")
+elif (_MERGED_DIR / "memory.md").exists():
+    SELF_IMPROVING_DIR = _MERGED_DIR
+    print(f"📌 Using merged Self-Improving: {SELF_IMPROVING_DIR}")
 else:
-    # Running from original ~/self-improving/ location
-    SELF_IMPROVING_DIR = Path.home() / "self-improving"
+    # New install - use merged location
+    SELF_IMPROVING_DIR = _MERGED_DIR
+    print(f"📌 New installation at: {SELF_IMPROVING_DIR}")
 
 MEMORY_FILE = SELF_IMPROVING_DIR / "memory.md"
 DOMAINS_DIR = SELF_IMPROVING_DIR / "domains"
