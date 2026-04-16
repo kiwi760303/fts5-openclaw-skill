@@ -20,8 +20,8 @@ from skills.fts5 import init_db, add_message, get_stats, search
 # State file to track indexed sessions
 STATE_FILE = os.path.expanduser("~/.openclaw/fts5/indexer_state.json")
 
-# Session directory
-SESSIONS_DIR = "/home/snow/.openclaw/agents/main/sessions"
+# Session directory - use ~/.openclaw/agents/main/sessions
+SESSIONS_DIR = os.path.expanduser("~/.openclaw/agents/main/sessions")
 
 
 def load_state() -> Dict:
