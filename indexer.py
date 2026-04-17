@@ -136,25 +136,33 @@ def count_messages_in_file(filepath: str) -> int:
 CHECKPOINT_BATCH_SIZE = 100  # Save checkpoint every N messages
 
 
-def import_session_with_checkpoint(filepath: str, force: bool = False) -> Tuple[int, bool, Optional[Dict]]:
+def import_session_with_checkpoint(filepath: str, force: bool = False, state: Dict = None) -> Tuple[int, bool, Optional[Dict]]:
     """
     Import messages with checkpoint/resume support.
+    
+    Args:
+        filepath: Path to session file
+        force: Force re-index even if unchanged
+        state: Shared state dict (for tracking indexed_sessions)
     
     Returns:
         (count imported, was_updated, checkpoint_info)
     """
     filename = os.path.basename(filepath)
     session_id = make_session_id(filename)
-    state = load_state()
+    
+    # Use provided state or load new
+    if state is None:
+        state = load_state()
     
     # Get current file info
     session_info = get_session_info(filepath)
     
     # Check if file changed
-    if not force and filename in state["indexed_sessions"]:
+    if not force and filename in state.get("indexed_sessions", {}):
         last_info = state["indexed_sessions"][filename]
-        if (last_info["size"] == session_info["size"] and 
-            last_info["mtime"] == session_info["mtime"]):
+        if (last_info.get("size") == session_info["size"] and 
+            last_info.get("mtime") == session_info["mtime"]):
             return 0, False, None
     
     # Get checkpoint if exists
@@ -254,12 +262,19 @@ def _save_checkpoint(session_id: str, last_line: int, batch: int):
     save_state_atomic(state)
 
 
-def index_session(filepath: str, force: bool = False) -> Tuple[int, bool]:
+def index_session(filepath: str, force: bool = False, state: Dict = None) -> Tuple[int, bool]:
     """
-    Index new messages from a session file (legacy interface).
-    Now delegates to checkpoint version.
+    Index new messages from a session file.
+    
+    Args:
+        filepath: Path to session file
+        force: Force re-index even if unchanged
+        state: Shared state dict (for tracking indexed_sessions)
+    
+    Returns:
+        (count imported, was_updated)
     """
-    count, updated, _ = import_session_with_checkpoint(filepath, force)
+    count, updated, _ = import_session_with_checkpoint(filepath, force, state)
     return count, updated
 
 
@@ -295,6 +310,11 @@ def with_exponential_backoff(func):
 def run_indexer() -> Dict:
     """
     Run the FTS5 indexer with checkpoint/resume support.
+    
+    Two-Phase State Management:
+    - Phase 1: Load state from disk
+    - Phase 2: Process sessions and update indexed_sessions
+    - Phase 3: Save state atomically
     """
     init_db()
     state = load_state()
@@ -321,7 +341,7 @@ def run_indexer() -> Dict:
             filename = session_id.replace(SESSION_TYPE_PREFIX, "")
             filepath = SESSIONS_DIR / filename
             if filepath.exists():
-                count, _, _ = import_session_with_checkpoint(str(filepath))
+                count, _, _ = import_session_with_checkpoint(str(filepath), state=state)
                 if count > 0:
                     results["resumed_from_checkpoint"] += 1
                     results["new_messages"] += count
@@ -335,14 +355,14 @@ def run_indexer() -> Dict:
         results["sessions_checked"] += 1
         
         try:
-            count, updated = index_session(str(filepath))
+            count, updated = index_session(str(filepath), state=state)
             if updated:
                 results["sessions_updated"] += 1
                 results["new_messages"] += count
         except Exception as e:
             results["errors"].append(f"{filename}: {str(e)}")
     
-    # Update last run time
+    # Phase 3: Save state atomically
     state["last_run"] = datetime.now().isoformat()
     state["total_indexed"] = get_stats()["total"]
     save_state_atomic(state)
